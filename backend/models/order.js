@@ -1,23 +1,11 @@
 const mongoose = require("mongoose");
-const populate = require("mongoose-autopopulate");
 
 const orderSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    require: true,
-    autopopulate: true,
-  },
-  products: [
+  orderItems: [
     {
-      id: {
+      product: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Product",
-        require: true,
-        autopopulate: true,
-      },
-      name: {
-        type: String,
         required: true,
       },
       quantity: {
@@ -28,58 +16,57 @@ const orderSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
-      image: {
+      name: {
         type: String,
         required: true,
       },
+      image: {
+        type: String,
+      },
     },
   ],
+  shippingAddress1: {
+    type: String,
+    required: true,
+  },
+  shippingAddress2: {
+    type: String,
+  },
+  city: {
+    type: String,
+    required: true,
+  },
+  zip: {
+    type: String,
+    required: true,
+  },
+  country: {
+    type: String,
+    required: true,
+  },
   totalPrice: {
     type: Number,
     required: true,
   },
-  shippingAddress: {
-    name: {
-      type: String,
-      required: true,
-    },
-    mobileNo: {
-      type: String,
-      required: true,
-    },
-    houseNo: {
-      type: String,
-      required: true,
-    },
-    street: {
-      type: String,
-      required: true,
-    },
-    landmark: {
-      type: String,
-      required: true,
-    },
-    postalCode: {
-      type: String,
-      required: true,
-    },
-  },
-  paymentMethod: {
-    type: String,
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
     required: true,
   },
-  orderStatus: {
-    type: String,
-    default: "Processing",
-  },
-  createdAt: {
+  dateOrdered: {
     type: Date,
     default: Date.now,
   },
 });
 
+orderSchema.virtual("id").get(function () {
+  return this._id.toHexString();
+});
 
-orderSchema.plugin(populate);
+orderSchema.set("toJSON", {
+  virtuals: true,
+});
+
 const Order = mongoose.model("Order", orderSchema);
 
 module.exports = Order;

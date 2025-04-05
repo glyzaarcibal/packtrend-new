@@ -19,9 +19,9 @@ const Orders = (props) => {
     )
 
     const getOrders = () => {
-        axios.get(`${baseURL}orders`)
+        axios.get(`${baseURL}all/orders`)
             .then((res) => {
-                setOrderList(res.data)
+                setOrderList(res.data.order) // Access the nested 'order' property
             })
             .catch((error) => console.log(error))
     }

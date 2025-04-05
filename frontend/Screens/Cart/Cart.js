@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SwipeListView } from 'react-native-swipe-list-view';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   removeFromCart, 
   clearCart, 
@@ -122,33 +123,20 @@ const Cart = () => {
     }
   };
 
-  // Handle checkout process
-  const handleCheckout = async () => {
-    try {
-      // Check authentication status
-      if (context.stateUser.isAuthenticated) {
-        navigation.navigate('Checkout');
-      } else {
-        // Redirect to login with return path
-        navigation.navigate("User", {
-          screen: 'Login',
-          params: { returnTo: 'Checkout' }
-        });
-        
-        Toast.show({
-          type: "info",
-          text1: "Login Required",
-          text2: "Please log in to complete checkout"
-        });
-      }
-    } catch (error) {
-      console.error("Checkout process error:", error);
+  // Simplified checkout process - always navigate to Checkout
+  // Let the Checkout component handle authentication
+  const handleCheckout = () => {
+    if (cartItems.length === 0) {
       Toast.show({
-        type: "error",
-        text1: "Checkout Error",
-        text2: "Unable to proceed. Please try again."
+        type: "info",
+        text1: "Empty Cart",
+        text2: "Please add items before checkout"
       });
+      return;
     }
+    
+    console.log("Proceeding to checkout");
+    navigation.navigate('Checkout');
   };
 
   // Render individual cart item

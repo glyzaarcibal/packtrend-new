@@ -59,7 +59,7 @@ const Confirm = (props) => {
             });
             return;
         }
-
+    
         const order = finalOrder.order.order;
         
         // Debug: Log order data structure
@@ -83,7 +83,7 @@ const Confirm = (props) => {
         // Calculate totalPrice if missing or ensure it's a valid number
         let calculatedTotal = 0;
         let hasValidPrice = true;
-
+    
         try {
             // Verify each item has a valid price
             calculatedTotal = order.orderItems.reduce((total, item, index) => {
@@ -103,14 +103,13 @@ const Confirm = (props) => {
             }
             
             // Ensure total price is a valid number
-            order.totalPrice = calculatedTotal;
-            if (typeof order.totalPrice !== 'number' || isNaN(order.totalPrice) || order.totalPrice <= 0) {
-                console.error("Invalid total price:", order.totalPrice);
+            if (typeof calculatedTotal !== 'number' || isNaN(calculatedTotal) || calculatedTotal <= 0) {
+                console.error("Invalid calculated total price:", calculatedTotal);
                 throw new Error("Total price must be a positive number");
             }
             
             // Log the calculated total
-            console.log("Calculated total price:", order.totalPrice);
+            console.log("Calculated total price:", calculatedTotal);
         } catch (error) {
             Toast.show({
                 topOffset: 60,
@@ -152,7 +151,7 @@ const Confirm = (props) => {
         order.orderItems.forEach((item, index) => {
             const itemIssues = [];
             
-            if (!item.product && !item.id && !item._id) {
+            if (!item.product && !item._id && !item.id) {
                 itemIssues.push("product ID");
             }
             
@@ -179,7 +178,7 @@ const Confirm = (props) => {
             });
             return;
         }
-
+    
         // Validate token
         if (!token) {
             Toast.show({
@@ -191,52 +190,55 @@ const Confirm = (props) => {
             return;
         }
 
-        // Format the order data to match server expectations
+        // Structure the data to match backend expectations
         const serverOrder = {
-            orderItems: order.orderItems.map(item => ({
-                product: item._id?.$oid || item._id || item.id || 0,
+            cartItems: order.orderItems.map(item => ({
+                _id: item._id || item.id || item.product,
+                name: item.name,
                 quantity: item.quantity || 1,
                 price: item.price,
-                name: item.name,
-                image: item.image || null
+                images: item.images || [item.image] || []
             })),
-            shippingAddress1: order.shippingAddress1,
-            shippingAddress2: order.shippingAddress2 || '',
-            city: order.city,
-            zip: order.zip,
-            country: order.country,
-            totalPrice: order.totalPrice
+            totalPrice: calculatedTotal,
+            shippingAddress: {
+                address1: order.shippingAddress1,
+                address2: order.shippingAddress2 || '',
+                city: order.city,
+                zip: order.zip,
+                country: order.country
+            },
+            paymentMethod: order.paymentMethod || 'Cash'  // Default payment method
         };
-
+    
         // Right before the axios call - add comprehensive logging
         console.log("Final order data check:");
         console.log("totalPrice:", serverOrder.totalPrice, typeof serverOrder.totalPrice);
-        console.log("orderItems check:", serverOrder.orderItems.map(item => ({
+        console.log("cartItems check:", serverOrder.cartItems.map(item => ({
             name: item.name,
             price: item.price,
             type: typeof item.price,
             quantity: item.quantity
         })));
-
+    
         const config = {
             headers: {
                 Authorization: `Bearer ${token}`
             }
         }
-
-        // Ensure URL is correctly formed
-        const url = `${baseURL}orders`;
+    
+        // Update URL to match the endpoint in orderRoutes.js
+        const url = `${baseURL}order`;
         console.log("Sending request to:", url);
         console.log("Formatted order data:", JSON.stringify(serverOrder, null, 2));
-
+    
         // Make the request
         axios
             .post(url, serverOrder, config)
             .then((res) => {
                 if (res.status == 200 || res.status == 201) {
                     // Store order ID if returned by server
-                    if (res.data && res.data.orderId) {
-                        setOrderId(res.data.orderId);
+                    if (res.data && res.data._id) {
+                        setOrderId(res.data._id);
                     }
                     
                     // Set order success flag
@@ -248,13 +250,13 @@ const Confirm = (props) => {
                         text1: "Order Completed",
                         text2: res.data.message || "Your order has been placed successfully",
                     });
-
+    
                     // Store order ID in AsyncStorage for reference
-                    if (res.data && res.data.orderId) {
-                        AsyncStorage.setItem("lastOrderId", res.data.orderId.toString())
+                    if (res.data && res.data._id) {
+                        AsyncStorage.setItem("lastOrderId", res.data._id.toString())
                             .catch(err => console.error("Failed to save order ID:", err));
                     }
-
+    
                     setTimeout(() => {
                         dispatch(clearCart())
                         navigation.navigate("Cart");
@@ -276,7 +278,7 @@ const Confirm = (props) => {
                         topOffset: 60,
                         type: "error",
                         text1: `Server error (${error.response.status})`,
-                        text2: error.response.data.error || "Please try again",
+                        text2: error.response.data.message || "Please try again",
                     });
                 } else if (error.request) {
                     // The request was made but no response was received
@@ -321,14 +323,26 @@ const Confirm = (props) => {
                 }
             };
             
-            const response = await axios.get(`${baseURL}orders/${orderId}`, config);
+            const response = await axios.get(`${baseURL}get/single/order`, config);
             
-            Toast.show({
-                topOffset: 60,
-                type: "info",
-                text1: "Order Status",
-                text2: `Status: ${response.data.status || "Processing"}`,
-            });
+            // Find the specific order in the returned orders array
+            const orderDetails = response.data.order.find(o => o._id === orderId);
+            
+            if (orderDetails) {
+                Toast.show({
+                    topOffset: 60,
+                    type: "info",
+                    text1: "Order Status",
+                    text2: `Status: ${orderDetails.orderStatus || "Processing"}`,
+                });
+            } else {
+                Toast.show({
+                    topOffset: 60,
+                    type: "info",
+                    text1: "Order Status",
+                    text2: "Order found but no status available",
+                });
+            }
         } catch (error) {
             console.error("Failed to check order status:", error);
             
@@ -376,6 +390,8 @@ const Confirm = (props) => {
                                             source={{
                                                 uri: item.image
                                                     ? item.image 
+                                                    : item.images && item.images.length > 0
+                                                    ? item.images[0]
                                                     : 'https://cdn.pixabay.com/photo/2012/04/01/17/29/box-23649_960_720.png'
                                             }} 
                                         />
