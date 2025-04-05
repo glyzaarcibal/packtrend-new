@@ -2,6 +2,7 @@
 const User = require("../models/user");
 const Order = require("../models/order");
 const nodemailer = require("nodemailer");
+const pushNotificationService = require("../utils/pushNotificationService");
 
 const getMonthName = (monthNumber) => {
   const months = [
@@ -21,49 +22,55 @@ const getMonthName = (monthNumber) => {
   return months[monthNumber - 1]; // Adjust index by subtracting 1
 };
 
-const sendOrderNotification = async (email, products, order) => {
-  //create a nodemailer transport
+// Add this function to your orderController.js
 
-  const transporter = nodemailer.createTransport({
-    //configure the email service
-    host: "sandbox.smtp.mailtrap.io",
-    port: 2525,
-    auth: {
-      user: "7392e0157cef10",
-      pass: "0710ee17f3f62b",
-    },
-  });
-
-  //compose the email message
-  const mailOptions = {
-    from: "glyzamarieparcibal07@gmail.com",
-    to: email,
-    subject: "Order Notification",
-  };
-  const productText = products
-    .map((product) => `- ${product.name} x${product.quantity}`)
-    .join("\n");
-
-  mailOptions.text = `Thank you for ordering from us! \n\nThis is the list of items you've ordered:\n${productText}\n\nPayment Method: ${order.paymentMethod}\nOrder Total:₱ ${order.totalPrice}`;
-
-  //send the email
+exports.getSingleOrder = async (req, res) => {
   try {
-    await transporter.sendMail(mailOptions);
+    const { id } = req.params;
+    
+    console.log(`Fetching order details for ID: ${id}`);
+    
+    const order = await Order.findById(id)
+      .populate('orderItems.product')
+      .populate('user', 'name email');
+    
+    if (!order) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Order not found" 
+      });
+    }
+    
+    // Check if the requesting user is the owner of the order or an admin
+    if (req.user.role !== 'admin' && order.user._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to access this order"
+      });
+    }
+    
+    res.status(200).json(order);
   } catch (error) {
-    console.log("Error sending verification email", error);
+    console.log("Error fetching order details:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error fetching order details", 
+      error: error.message 
+    });
   }
 };
+
 
 exports.placeOrder = async (req, res, next) => {
   console.log("Order payload received:", req.body);
   try {
     // Handle both data formats (original and updated)
-    let cartItems, totalPrice, shippingAddress, paymentMethod;
+    let cartItems, totalPrice, shippingAddress, paymentMethod, status;
     
     // Check which format the data is in
     if (req.body.cartItems && req.body.totalPrice) {
       // Original format
-      ({ cartItems, totalPrice, shippingAddress, paymentMethod } = req.body);
+      ({ cartItems, totalPrice, shippingAddress, paymentMethod, status } = req.body);
     } else if (req.body.orderItems) {
       // Alternative format (from Confirm.js)
       cartItems = req.body.orderItems;
@@ -76,6 +83,7 @@ exports.placeOrder = async (req, res, next) => {
         country: req.body.country
       };
       paymentMethod = req.body.paymentMethod || 'Cash';
+      status = req.body.status || '3'; // Default to pending (3)
     } else {
       // Handle new format where we receive cartItems in different format
       cartItems = req.body.cartItems;
@@ -96,6 +104,7 @@ exports.placeOrder = async (req, res, next) => {
       }
       
       paymentMethod = req.body.paymentMethod || 'Cash';
+      status = req.body.status || '3'; // Default to pending (3)
     }
     
     // Validate the required data
@@ -153,7 +162,8 @@ exports.placeOrder = async (req, res, next) => {
       zip: shippingAddress.zip,
       country: shippingAddress.country,
       totalPrice: totalPrice,
-      paymentMethod: paymentMethod
+      paymentMethod: paymentMethod,
+      status: status || '3' // Ensure status is set with a default
     });
 
     const savedOrder = await order.save();
@@ -162,14 +172,43 @@ exports.placeOrder = async (req, res, next) => {
       { $push: { orders: savedOrder._id } },
       { new: true }
     );
+    
+    // Send email notification
     sendOrderNotification(req.user.email, products, {
       paymentMethod: paymentMethod,
       totalPrice: totalPrice
     });
+    
+    // Send push notification for new order
+    try {
+      // Create notification message
+      const message = {
+        title: "Order Received",
+        body: `Your order has been placed successfully! Order #${savedOrder._id}`
+      };
+      
+      // Include order details for deep linking
+      const data = {
+        screen: 'OrderDetail',
+        orderId: savedOrder._id.toString(),
+        status: savedOrder.status
+      };
+      
+      // Send push notification
+      await pushNotificationService.sendPushNotification(
+        req.user._id,
+        message,
+        data
+      );
+    } catch (notificationError) {
+      console.log("Error sending push notification:", notificationError);
+      // Don't fail the order creation if notification fails
+    }
 
     res.status(200).json({ 
       message: "Order created successfully!",
-      _id: savedOrder._id
+      _id: savedOrder._id,
+      status: savedOrder.status
     });
   } catch (error) {
     console.log("Error creating orders", error);
@@ -182,19 +221,43 @@ exports.getAllOrder = async (req, res) => {
   res.status(200).json({ order });
 };
 
+// Update order status (original method)
 exports.updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const newStatus = req.body.status;
+    
+    // Log for debugging
+    console.log(`Updating order ${id} with status: ${newStatus}`);
+    
+    // Get order before update to compare status
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    
+    const previousStatus = order.status;
+    
+    // Update the order
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
-      {
-        status: req.body.status
-      },
+      { status: newStatus },
       { new: true }
     );
     
-    if (!updatedOrder) {
-      return res.status(404).json({ message: "Order not found" });
+    // Send push notification if status changed
+    if (previousStatus !== newStatus) {
+      try {
+        await pushNotificationService.sendOrderStatusNotification(
+          order.user,
+          updatedOrder,
+          previousStatus
+        );
+        console.log(`Push notification sent for order ${id} status update`);
+      } catch (notificationError) {
+        console.log("Error sending status update notification:", notificationError);
+        // Don't fail the update if notification fails
+      }
     }
     
     res.status(200).json({ 
@@ -210,23 +273,60 @@ exports.updateOrder = async (req, res) => {
   }
 };
 
+// Alternative update status method
 exports.UpdateStatus = async (req, res) => {
   try {
     // Log the incoming request data for debugging
     console.log("Update status request:", req.body);
     
     // Find and update the order
+    const orderId = req.body.item || req.body.orderId;
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "Order ID is required"
+      });
+    }
+    
+    const newStatus = req.body.orderStatus || req.body.status;
+    if (!newStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required"
+      });
+    }
+    
+    // Get order before update to compare status
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+    
+    const previousStatus = order.status;
+    
+    // Update the order
     const updatedOrder = await Order.findByIdAndUpdate(
-      req.body.item,
-      { status: req.body.orderStatus }, // Make sure this field name matches your Order schema
+      orderId,
+      { status: newStatus },
       { new: true }
     );
     
-    if (!updatedOrder) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Order not found" 
-      });
+    // Send push notification if status changed
+    if (previousStatus !== newStatus) {
+      try {
+        await pushNotificationService.sendOrderStatusNotification(
+          order.user,
+          updatedOrder,
+          previousStatus
+        );
+        console.log(`Push notification sent for order ${orderId} status update`);
+      } catch (notificationError) {
+        console.log("Error sending status update notification:", notificationError);
+        // Don't fail the update if notification fails
+      }
     }
     
     // Send back a success response

@@ -1,59 +1,101 @@
-import React, { useState, useContext, useCallback, useEffect } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Button, Alert, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet, Button, Alert, ScrollView, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import baseURL from "../../assets/common/baseurl";
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { logoutUser } from '../../context/Actions/Auth.actions';
-import { AuthContext } from '../../context/AuthContext';
+import { useFocusEffect } from '@react-navigation/native';
+// Update the import path to match where your useAuth is exported
+import { useAuth } from '../../context/Store/Auth';
 
-const UserProfile = ({ navigation }) => {
+const UserProfile = (props) => {
+    // Get navigation from either props or props.navigation
+    const navigation = props.navigation || props;
+    
     const [userProfile, setUserProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-
-    const { dispatch = () => {} } = useContext(AuthContext) || {};
+    
+    // Use the useAuth hook to get current auth state
+    const { user: authUser, token: authToken, logout } = useAuth();
 
     useEffect(() => {
+        // Log user data from AuthContext
+        console.log('Auth Context User:', authUser);
+        console.log('Auth Context Token exists:', authToken ? 'Yes' : 'No');
+        
+        // Log profile data
         console.log('User Profile Full Data:', userProfile);
         if (userProfile) {
             console.log('Is Admin (isAdmin):', userProfile.isAdmin);
-            console.log('Is Admin (is_admin):', userProfile.is_admin);
             console.log('Is Admin Type (isAdmin):', typeof userProfile.isAdmin);
-            console.log('Is Admin Type (is_admin):', typeof userProfile.is_admin);
         }
-    }, [userProfile]);
+    }, [authUser, authToken, userProfile]);
     
     const fetchProfile = useCallback(async () => {
         try {
             setLoading(true);
             setError('');
-
-            const jwt = await AsyncStorage.getItem('jwt');
             
-            if (!jwt) {
+            // First, try to use token from AuthContext
+            let token = authToken;
+            
+            // If that fails, try to get from AsyncStorage (both potential keys)
+            if (!token) {
+                token = await AsyncStorage.getItem('jwt') || 
+                        await AsyncStorage.getItem('token');
+            }
+            
+            if (!token) {
+                console.log('No token found in any location');
                 throw new Error('No authentication token found');
             }
-
-            const storedUserData = await AsyncStorage.getItem('userData');
-            if (storedUserData) {
-                const parsedUserData = JSON.parse(storedUserData);
-                setUserProfile(parsedUserData);
+            
+            // First check if we already have user data in context
+            if (authUser) {
+                console.log('Using user data from AuthContext');
+                setUserProfile(authUser);
+            } else {
+                // Try to load from AsyncStorage (both potential keys)
+                const storedUserData = await AsyncStorage.getItem('user') || 
+                                       await AsyncStorage.getItem('userData');
+                                       
+                if (storedUserData) {
+                    console.log('Using user data from AsyncStorage');
+                    const parsedUserData = JSON.parse(storedUserData);
+                    // Ensure isAdmin is a boolean
+                    parsedUserData.isAdmin = !!parsedUserData.isAdmin;
+                    setUserProfile(parsedUserData);
+                }
             }
             
-            const profileUrl = `${baseURL}profile`;
-            const response = await axios.get(profileUrl, {
-                headers: { Authorization: `Bearer ${jwt}` }
-            });
-
-            if (response.data) {
-                const profileData = {
-                    ...response.data.user,  // Ensure we're getting the user object from the response
-                    isAdmin: response.data.user.isAdmin === true || response.data.user.is_admin === 1
-                };
+            // Try to get updated profile from server
+            try {
+                console.log('Fetching profile from server...');
+                console.log('Using token:', token.substring(0, 10) + '...');
                 
-                setUserProfile(profileData);
-                await AsyncStorage.setItem('userData', JSON.stringify(profileData));
+                const profileUrl = `${baseURL}users/profile`;
+                const response = await axios.get(profileUrl, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                console.log('Profile response:', response.data);
+                
+                if (response.data && response.data.success) {
+                    const profileData = {
+                        ...response.data.user,
+                        isAdmin: !!response.data.user.isAdmin
+                    };
+                    
+                    console.log('Updated profile data from server:', profileData);
+                    setUserProfile(profileData);
+                    
+                    // Store the updated data
+                    await AsyncStorage.setItem('user', JSON.stringify(profileData));
+                    await AsyncStorage.setItem('userData', JSON.stringify(profileData));
+                }
+            } catch (profileError) {
+                console.warn('Error fetching updated profile:', profileError);
+                // Continue with stored profile data
             }
             
             setLoading(false);
@@ -68,11 +110,11 @@ const UserProfile = ({ navigation }) => {
             
             setLoading(false);
         }
-    }, [navigation]);
+    }, [authUser, authToken, navigation]);
 
     const handleTokenExpiration = async () => {
         try {
-            await AsyncStorage.multiRemove(['jwt', 'userData']);
+            await AsyncStorage.multiRemove(['jwt', 'token', 'user', 'userData']);
             
             Alert.alert(
                 'Session Expired', 
@@ -92,11 +134,14 @@ const UserProfile = ({ navigation }) => {
 
     const handleLogout = async () => {
         try {
-            if (dispatch && typeof dispatch === 'function') {
-                logoutUser(dispatch);
+            // Use the logout function from useAuth hook
+            if (logout && typeof logout === 'function') {
+                await logout();
+            } else {
+                // Fallback if logout function is not available
+                await AsyncStorage.multiRemove(['jwt', 'token', 'user', 'userData']);
             }
             
-            await AsyncStorage.multiRemove(['jwt', 'userData']);
             navigation.reset({
                 index: 0,
                 routes: [{ name: 'Login' }]
@@ -132,14 +177,17 @@ const UserProfile = ({ navigation }) => {
             <View style={styles.centered}>
                 <Text style={styles.errorText}>{error}</Text>
                 <Button title="Try Again" onPress={fetchProfile} />
+                <View style={styles.buttonSpacer} />
+                <Button title="Go to Login" onPress={() => navigation.navigate('Login')} color="#4682B4" />
             </View>
         );
     }
 
     const isAdminUser = userProfile && 
         (userProfile.isAdmin === true || 
-         userProfile.is_admin === 1 || 
-         userProfile.isAdmin === 1);
+         userProfile.is_admin === true || 
+         userProfile.isAdmin === 1 || 
+         userProfile.is_admin === 1);
 
     // Default profile image if none is available
     const defaultImage = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';

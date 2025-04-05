@@ -7,6 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Login from "../Screens/User/Login";
 import Register from "../Screens/User/Register";
 import UserProfile from "../Screens/User/UserProfile";
+import OrderDetail from "../Screens/User/OrderDetail";
+import MyOrders from "../Screens/User/MyOrders";
 
 const Stack = createStackNavigator();
 
@@ -57,14 +59,28 @@ const UserNavigator = () => {
             }}
         >
             {isLoggedIn ? (
-                <Stack.Screen 
-                    name="UserProfile" 
-                    component={UserProfile} 
-                    options={{ 
-                        title: "My Profile",
-                        initialParams: { userData: userData }
-                    }}
-                />
+                <>
+                    <Stack.Screen 
+                        name="UserProfile" 
+                        component={UserProfile} 
+                        options={{ 
+                            title: "My Profile",
+                            initialParams: { userData: userData }
+                        }}
+                    />
+                    <Stack.Screen 
+                        name="MyOrders" 
+                        component={MyOrders} 
+                        options={{ title: "My Orders" }}
+                    />
+                    <Stack.Screen 
+                        name="OrderDetail" 
+                        component={OrderDetail} 
+                        options={({ route }) => ({ 
+                            title: `Order #${route.params?.id || ''}` 
+                        })}
+                    />
+                </>
             ) : (
                 <>
                     <Stack.Screen 

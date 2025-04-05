@@ -48,7 +48,7 @@ export const productsReducer = (state = initialState, action) => {
       return {
         ...state,
         loading: false,
-        error: action.payload
+        error: action.payload || 'Failed to fetch products'
       };
       
     // Create product

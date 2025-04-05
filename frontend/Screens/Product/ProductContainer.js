@@ -1,30 +1,33 @@
-import React, { useState, useEffect } from "react";
-import { View, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { View, ScrollView, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, RefreshControl } from "react-native";
 import { Surface, Text, Searchbar } from "react-native-paper";
 import Banner from "../Shared/Banner";
 import BrandFilter from "./BrandFilter";
-import ProductList, { ProductListControls } from "./ProductList";
+import ProductList from "./ProductList";
 import SearchedProduct from "./SearchedProduct";
 import { useTheme } from "../../context/ThemeContext";
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchProducts } from '../../Redux/Actions/productActions';
 import { fetchBrands } from '../../Redux/Actions/brandActions';
-import { addMultipleToCart } from '../../Redux/Actions/cartActions';
 import Toast from 'react-native-toast-message';
 
-var { height } = Dimensions.get("window");
+const { height } = Dimensions.get("window");
 
 const ProductContainer = ({ navigation }) => {
     const { isDarkMode } = useTheme();
     const dispatch = useDispatch();
     
-    // Get products and brands from Redux store
-    const { products, loading: productsLoading, error: productsError } = useSelector(state => state.products);
-    const { brands, loading: brandsLoading, error: brandsError } = useSelector(state => state.brands);
+    // Get products and brands from Redux store with safe fallbacks
+    const productState = useSelector(state => state.products || {});
+    const brandState = useSelector(state => state.brands || {});
     
-    // New state for product selection mode
-    const [selectMode, setSelectMode] = useState(false);
-    const [selectedProducts, setSelectedProducts] = useState([]);
+    const products = useMemo(() => productState.products || [], [productState.products]);
+    const productsLoading = productState.loading || false;
+    const productsError = productState.error || null;
+    
+    const brands = useMemo(() => brandState.brands || [], [brandState.brands]);
+    const brandsLoading = brandState.loading || false;
+    const brandsError = brandState.error || null;
     
     const [productsFiltered, setProductsFiltered] = useState([]);
     const [focus, setFocus] = useState(false);
@@ -32,27 +35,108 @@ const ProductContainer = ({ navigation }) => {
     const [productsCtg, setProductsCtg] = useState([]);
     const [keyword, setKeyword] = useState("");
     const [showSearchResults, setShowSearchResults] = useState(false);
+    const [isRetrying, setIsRetrying] = useState(false);
+    const [lastFetchTime, setLastFetchTime] = useState(0);
 
+    // Fetch data with retry logic and debounce protection
+    const fetchData = useCallback(async () => {
+        try {
+            const now = Date.now();
+            // Prevent rapid re-fetching (at least 2 seconds between fetches)
+            if (now - lastFetchTime < 2000 && lastFetchTime !== 0) {
+                console.log("Throttling fetch requests");
+                return;
+            }
+            
+            setLastFetchTime(now);
+            setIsRetrying(true);
+            
+            // Reset state variables
+            setFocus(false);
+            setActive(-1);
+            setShowSearchResults(false);
+            
+            // Show loading toast
+            Toast.show({
+                type: "info",
+                text1: "Loading",
+                text2: "Fetching latest products and brands...",
+                visibilityTime: 2000,
+            });
+            
+            // Fetch products and brands from API with proper error handling
+            const [productsResult, brandsResult] = await Promise.all([
+                dispatch(fetchProducts()),
+                dispatch(fetchBrands())
+            ]);
+            
+            // Check if both requests were successful
+            if (productsResult.success && brandsResult.success) {
+                Toast.show({
+                    type: "success",
+                    text1: "Data Loaded",
+                    text2: "Products and brands refreshed",
+                    visibilityTime: 2000,
+                });
+            } else {
+                // If products are available, still show them even if there's an error
+                if (products.length > 0) {
+                    Toast.show({
+                        type: "info",
+                        text1: "Partial Data",
+                        text2: "Some data may be outdated",
+                        visibilityTime: 2000,
+                    });
+                } else {
+                    throw new Error(
+                        productsResult.message || 
+                        brandsResult.message || 
+                        "Failed to fetch data"
+                    );
+                }
+            }
+        } catch (error) {
+            console.error("Error in fetchData:", error);
+            Toast.show({
+                type: "error",
+                text1: "Network Error",
+                text2: error.message || "Please check your connection and try again.",
+                visibilityTime: 3000,
+            });
+        } finally {
+            setIsRetrying(false);
+        }
+    }, [dispatch, lastFetchTime, products]);
+
+    // Initial data fetch
     useEffect(() => {
-        // Fetch products and brands from API
-        dispatch(fetchProducts());
-        dispatch(fetchBrands());
+        fetchData();
+    }, []);
 
-        // Reset state variables
-        setFocus(false);
-        setActive(-1);
-        setShowSearchResults(false);
-    }, [dispatch]);
-
+    // Update filtered products when products change
     useEffect(() => {
-        if (products) {
+        if (products && products.length > 0) {
             setProductsCtg(products);
             setProductsFiltered(products);
         }
     }, [products]);
 
-    // Handle search
-    const handleSearch = (text) => {
+    // Show error toast if there's any error
+    useEffect(() => {
+        const error = productsError || brandsError;
+        if (error) {
+            Toast.show({
+                topOffset: 60,
+                type: "error",
+                text1: "Error loading data",
+                text2: typeof error === 'string' ? error : "An unexpected error occurred",
+                visibilityTime: 3000,
+            });
+        }
+    }, [productsError, brandsError]);
+
+    // Handle search - using useCallback to memoize the function
+    const handleSearch = useCallback((text) => {
         setKeyword(text);
         
         if (text === "") {
@@ -63,129 +147,158 @@ const ProductContainer = ({ navigation }) => {
             setFocus(true);
             setShowSearchResults(true);
         }
-    };
+    }, [products]);
 
-    // Filter by brand
-    const handleBrandFilter = (brandId) => {
-        if (brandId === 'all') {
-            setProductsCtg(products);
-        } else {
-            const filtered = products.filter(
-                product => product.brand && (
-                    // Handle both autopopulated brands (objects) and non-autopopulated (IDs)
-                    (typeof product.brand === 'object' && product.brand._id === brandId) || 
-                    (typeof product.brand === 'string' && product.brand === brandId)
-                )
-            );
-            setProductsCtg(filtered);
-        }
-    };
-    
-    // Handle product selection for cart
-    const toggleProductSelection = (product) => {
-        setSelectedProducts(prev => {
-            // Check if product is already selected
-            const isSelected = prev.some(p => p._id === product._id);
-            
-            if (isSelected) {
-                // Remove from selection
-                return prev.filter(p => p._id !== product._id);
+    // Filter by brand - using useCallback
+    const handleBrandFilter = useCallback((brandId) => {
+        try {
+            if (brandId === 'all') {
+                setProductsCtg(products);
             } else {
-                // Add to selection
-                return [...prev, product];
+                const filtered = products.filter(
+                    product => product.brand && (
+                        // Handle both autopopulated brands (objects) and non-autopopulated (IDs)
+                        (typeof product.brand === 'object' && product.brand._id === brandId) || 
+                        (typeof product.brand === 'string' && product.brand === brandId)
+                    )
+                );
+                setProductsCtg(filtered);
             }
-        });
-    };
-    
-   // ... existing imports remain the same
-
-// Find the addSelectedToCart function and replace it with this improved version
-const addSelectedToCart = () => {
-    if (selectedProducts.length === 0) {
-        Toast.show({
-            type: "error",
-            text1: "No products selected",
-            text2: "Please select at least one product"
-        });
-        return;
-    }
-    
-    try {
-        // Validate stock before adding to cart
-        const outOfStockProducts = selectedProducts.filter(product => 
-            product.stock <= 0 || product.countInStock <= 0
-        );
-        
-        if (outOfStockProducts.length > 0) {
+        } catch (error) {
+            console.error("Error filtering by brand:", error);
             Toast.show({
                 type: "error",
-                text1: "Out of stock items",
-                text2: `${outOfStockProducts.length} items cannot be added due to insufficient stock`
+                text1: "Filter Error",
+                text2: "Could not filter products",
+                visibilityTime: 2000,
             });
-            
-            // If some products have stock, continue with those only
-            if (outOfStockProducts.length < selectedProducts.length) {
-                const inStockProducts = selectedProducts.filter(product => 
-                    product.stock > 0 || product.countInStock > 0
-                );
-                setSelectedProducts(inStockProducts);
-            } else {
-                return; // All selected products are out of stock
-            }
         }
-        
-        // Add quantity property to each selected product
-        const productsWithQuantity = selectedProducts.map(product => ({
-            ...product,
-            quantity: 1 // Default quantity
-        }));
-        
-        // Dispatch the multiple products action
-        dispatch(addMultipleToCart(productsWithQuantity));
-        
-        // Show success message
-        Toast.show({
-            type: "success",
-            text1: "Products Added",
-            text2: `${selectedProducts.length} products added to cart`
-        });
-        
-        // Reset selection state
-        setSelectMode(false);
-        setSelectedProducts([]);
-        
-       
-    } catch (error) {
-        console.error("Error adding products to cart:", error);
-        Toast.show({
-            type: "error",
-            text1: "Failed to add products",
-            text2: error.message || "An unexpected error occurred"
-        });
-    }
-};
+    }, [products]);
 
-    const handleSelectModeChange = (mode) => {
-        setSelectMode(mode);
-        if (!mode) {
-            // Clear selections when exiting select mode
-            setSelectedProducts([]);
-        }
-    };
-
-    // Show error if there's any
-    const error = productsError || brandsError;
-    if (error) {
-        Toast.show({
-            topOffset: 60,
-            type: "error",
-            text1: "Error loading data",
-            text2: error
-        });
-    }
+    // Handle retry button click
+    const handleRetry = useCallback(() => {
+        fetchData();
+    }, [fetchData]);
 
     // Show loading indicator if products or brands are loading
-    const loading = productsLoading || brandsLoading;
+    const loading = productsLoading || brandsLoading || isRetrying;
+    const error = productsError || brandsError;
+
+    // Render error state with retry button
+    const renderError = () => (
+        <View style={[styles.center, { height: height / 2 }]}>
+            <Text style={[styles.errorText, { color: isDarkMode ? "#fff" : "#000" }]}>
+                Error loading data.
+            </Text>
+            <Text style={[styles.errorSubText, { color: isDarkMode ? "#fff" : "#000" }]}>
+                Please check your connection and try again.
+            </Text>
+            <TouchableOpacity 
+                style={styles.retryButton} 
+                onPress={handleRetry}
+                activeOpacity={0.7}
+            >
+                <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+        </View>
+    );
+
+    // Render loading state
+    const renderLoading = () => (
+        <View style={[styles.center, { height: height / 2 }]}>
+            <ActivityIndicator 
+                size="large" 
+                color={isDarkMode ? "#fff" : "#000"} 
+            />
+            <Text style={{ color: isDarkMode ? "#fff" : "#000", marginTop: 10 }}>
+                Loading data...
+            </Text>
+        </View>
+    );
+
+    // Render the main content (product listing)
+    const renderProductListing = () => (
+        <ScrollView 
+            contentContainerStyle={styles.scrollViewContent}
+            refreshControl={
+                <RefreshControl
+                    refreshing={loading}
+                    onRefresh={fetchData}
+                    colors={[isDarkMode ? "#fff" : "#000"]}
+                    tintColor={isDarkMode ? "#fff" : "#000"}
+                />
+            }
+        >
+            <Banner />
+            
+            {brands && brands.length > 0 && (
+                <View>
+                    <Text style={[styles.title, { color: isDarkMode ? "#fff" : "#000" }]}>
+                        Shop by Brand
+                    </Text>
+                    <BrandFilter 
+                        Brand={brands} 
+                        active={active} 
+                        setActive={setActive} 
+                        BrandFilter={handleBrandFilter} 
+                    />
+                </View>
+            )}
+            
+            <Text style={[styles.headerText, { color: isDarkMode ? "#fff" : "#000" }]}>
+                Products
+            </Text>
+
+            {productsCtg && productsCtg.length > 0 ? (
+                <View style={styles.listContainer}>
+                    {productsCtg.map((item) => (
+                        <ProductList 
+                            key={item._id || `product-${Math.random().toString()}`} 
+                            item={item}
+                            navigation={navigation}
+                        />
+                    ))}
+                </View>
+            ) : (
+                <View style={[styles.center, { height: height / 2 }]}>
+                    <Text style={{ color: isDarkMode ? "#fff" : "#000" }}>
+                        No products found
+                    </Text>
+                </View>
+            )}
+        </ScrollView>
+    );
+
+    // Render search results
+    const renderSearchResults = () => (
+        <SearchedProduct 
+            searchQuery={keyword} 
+            products={products || []}
+            brands={brands || []}
+            navigation={navigation}
+        />
+    );
+
+    // Main render logic for content area
+    const renderContent = () => {
+        // If we have products, show them even if there's an error
+        if (products.length > 0) {
+            if (showSearchResults) {
+                return renderSearchResults();
+            }
+            return renderProductListing();
+        }
+
+        if (loading) {
+            return renderLoading();
+        }
+
+        if (error) {
+            return renderError();
+        }
+
+        return renderProductListing();
+    };
 
     return (
         <Surface
@@ -209,82 +322,7 @@ const addSelectedToCart = () => {
                 />
             </View>
 
-            {error && (
-                <View style={styles.center}>
-                    <Text style={{ color: isDarkMode ? "#fff" : "#000" }}>
-                        Error loading data. Please try again.
-                    </Text>
-                </View>
-            )}
-
-            {loading ? (
-                <View style={[styles.center, { height: height / 2 }]}>
-                    <ActivityIndicator size="large" color={isDarkMode ? "#fff" : "#000"} />
-                </View>
-            ) : (
-                <>
-                    {showSearchResults ? (
-                        <SearchedProduct 
-                            searchQuery={keyword} 
-                            products={products}
-                            brands={brands}
-                        />
-                    ) : (
-                        <ScrollView>
-                            <Banner />
-                            
-                            {brands && brands.length > 0 && (
-                                <View>
-                                    <Text style={[styles.title, { color: isDarkMode ? "#fff" : "#000" }]}>
-                                        Shop by Brand
-                                    </Text>
-                                    <BrandFilter 
-                                        Brand={brands} 
-                                        active={active} 
-                                        setActive={setActive} 
-                                        BrandFilter={handleBrandFilter} 
-                                    />
-                                </View>
-                            )}
-                            
-                            <Text style={[styles.headerText, { color: isDarkMode ? "#fff" : "#000" }]}>
-                                Products
-                            </Text>
-                            
-                            {/* Add ProductListControls component */}
-                            {productsCtg.length > 0 && (
-                                <ProductListControls 
-                                    products={productsCtg} 
-                                    onSelectModeChange={handleSelectModeChange}
-                                    selectedProducts={selectedProducts}
-                                    setSelectedProducts={setSelectedProducts}
-                                    onAddSelectedToCart={addSelectedToCart}
-                                />
-                            )}
-
-                            {productsCtg.length > 0 ? (
-                                <View style={styles.listContainer}>
-                                    {productsCtg.map((item) => (
-                                        <ProductList 
-                                            key={item._id} 
-                                            item={item} 
-                                            selectMode={selectMode}
-                                            isSelected={selectedProducts.some(p => p._id === item._id)}
-                                            onToggleSelection={() => toggleProductSelection(item)}
-                                        />
-                                    ))}
-                                </View>
-                            ) : (
-                                <View style={[styles.center, { height: height / 2 }]}>
-                                    <Text style={{ color: isDarkMode ? "#fff" : "#000" }}>
-                                        No products found
-                                    </Text>
-                                </View>
-                            )}
-                        </ScrollView>
-                    )}
-                </>
-            )}
+            {renderContent()}
         </Surface>
     );
 };
@@ -292,6 +330,9 @@ const addSelectedToCart = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    scrollViewContent: {
+        flexGrow: 1,
     },
     title: {
         fontSize: 20,
@@ -327,6 +368,32 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         padding: 20,
+    },
+    retryButton: {
+        backgroundColor: "#ff7e5f",
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        elevation: 3,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+    },
+    retryButtonText: {
+        color: "white",
+        fontWeight: "bold",
+        fontSize: 16,
+    },
+    errorText: {
+        fontSize: 18,
+        fontWeight: "bold",
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    errorSubText: {
+        marginBottom: 20,
+        textAlign: 'center',
     },
 });
 

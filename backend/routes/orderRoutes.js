@@ -10,7 +10,8 @@ const {
   calculateAverageSalesPerProduct, 
   calculateTotalSalesPerProduct, 
   MonthlyIncome,
-  updateOrder // Import the new controller function
+  updateOrder ,
+  getSingleOrder// Import the new controller function
 } = require("../controllers/orderController");
 const { isAuthenticated } = require("../middlewares/Auth");
 
@@ -22,5 +23,8 @@ router.get("/average/sales", calculateAverageSalesPerProduct);
 router.get("/total/sales", calculateTotalSalesPerProduct);
 router.get("/monthly/income", MonthlyIncome);
 router.put("/orders/:id", isAuthenticated, updateOrder);
+
+// Add the missing GET route for a single order by ID
+router.get("/orders/:id", isAuthenticated, getSingleOrder);
 
 module.exports = router;

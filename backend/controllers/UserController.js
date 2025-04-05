@@ -7,9 +7,70 @@ const bcrypt = require("bcryptjs");
 const tokenService = require("../utils/tokenService");
 const pushNotificationService = require("../utils/pushNotificationService");
 
-// Load environment variables
+
 const dotenv = require("dotenv");
 dotenv.config({ path: "../.env" });
+
+exports.registerPushToken = async (req, res) => {
+  try {
+    const { pushToken, deviceId, platform } = req.body;
+    
+    if (!pushToken) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Push token is required' 
+      });
+    }
+    
+    // Register the token
+    await pushNotificationService.registerPushToken(
+      req.user._id,
+      pushToken,
+      deviceId || `${platform || 'unknown'}-device`
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Push token registered successfully'
+    });
+  } catch (error) {
+    console.error('Error registering push token:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to register push token',
+      error: error.message
+    });
+  }
+};
+
+// Remove push token
+exports.removePushToken = async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    
+    if (!pushToken) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Push token is required' 
+      });
+    }
+    
+    // Remove the token
+    await pushNotificationService.removePushToken(req.user._id, pushToken);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Push token removed successfully'
+    });
+  } catch (error) {
+    console.error('Error removing push token:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove push token',
+      error: error.message
+    });
+  }
+};
 
 exports.login = async (req, res) => {
   try {

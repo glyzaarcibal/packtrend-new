@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { useDispatch } from 'react-redux';
+import { updateOrderStatus } from "../../Redux/Actions/orderActions";
+import { sendOrderStatusNotification } from "../../utils/notificationService";
 
 import TrafficLight from "./StyledComponents/TrafficLight";
 import EasyButton from "./StyledComponents/EasyButton";
-import Toast from "react-native-toast-message";
 import { Picker } from "@react-native-picker/picker";
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from "axios";
-import baseURL from "../../assets/common/baseurl";
-import { useNavigation } from '@react-navigation/native';
+import Toast from "react-native-toast-message";
 
 const codes = [
   { name: "pending", code: "3" },
@@ -17,124 +15,266 @@ const codes = [
   { name: "delivered", code: "1" },
 ];
 
-const OrderCard = ({ item, update }) => {
-  console.log(item);
-  const [orderStatus, setOrderStatus] = useState('');
+const OrderCard = ({ item, update, navigation }) => {
+  const [orderStatus, setOrderStatus] = useState(null);
   const [statusText, setStatusText] = useState('');
-  const [statusChange, setStatusChange] = useState(item.status);
-  const [token, setToken] = useState('');
+  const [statusChange, setStatusChange] = useState('3'); // Default to pending
   const [cardColor, setCardColor] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  
+  const dispatch = useDispatch();
 
-  const navigation = useNavigation();
-
-  const updateOrder = () => {
-    AsyncStorage.getItem("jwt")
-      .then((res) => {
-        if (res) {
-          const config = {
-            headers: {
-              Authorization: `Bearer ${res}`,
-            },
-          };
-
-          // Log what we're sending for debugging
-          console.log("Sending update:", {
-            item: item._id,
-            orderStatus: statusChange
-          });
-
-          // Make the API call
-          axios
-            .put(`${baseURL}orders/${item._id}`, {
-              status: statusChange
-            }, config)
-            .then((res) => {
-              console.log("Update response:", res.data);
-              if (res.status === 200 || res.status === 201) {
-                Toast.show({
-                  topOffset: 60,
-                  type: "success",
-                  text1: "Order Updated",
-                  text2: "",
-                });
-                // Refresh the page or navigate as needed
-                setTimeout(() => {
-                  navigation.navigate("AdminDashboard");
-                }, 500);
-              }
-            })
-            .catch((error) => {
-              console.log("Update error:", error.response?.data || error.message);
-              Toast.show({
-                topOffset: 60,
-                type: "error",
-                text1: "Something went wrong",
-                text2: "Please try again",
-              });
-            });
-        }
-      })
-      .catch((error) => console.log("JWT error:", error));
-  };
-
+  // Update the status display based on current status
   useEffect(() => {
-    // Update the order status display based on the item's status
-    if (item.status === "3") {
+    if (item) {
+      // Make sure we use the status from the item, defaulting to "3" if not available
+      const currentStatus = item.status || "3";
+      updateStatusDisplay(currentStatus);
+      setStatusChange(currentStatus);
+      
+      console.log("Order loaded with status:", currentStatus);
+    }
+  }, [item]);
+  
+  // Update the order when the user clicks the update button
+  const handleUpdateOrder = () => {
+    if (statusChange === item.status) {
+      // No change was made, just return
+      Toast.show({
+        topOffset: 60,
+        type: 'info',
+        text1: 'No Changes Made',
+        text2: 'Status remains the same',
+      });
+      return;
+    }
+    
+    setIsUpdating(true);
+    console.log(`Updating order ${item._id} from status ${item.status} to ${statusChange}`);
+    
+    dispatch(updateOrderStatus(item._id, statusChange))
+      .then(() => {
+        // Show success message
+        Toast.show({
+          topOffset: 60,
+          type: 'success',
+          text1: 'Order Updated Successfully',
+          text2: '',
+        });
+        
+        // Update local status display immediately
+        updateStatusDisplay(statusChange);
+        
+        // Send a local notification about the status update
+        sendOrderStatusNotification(item._id, statusChange)
+          .catch(error => console.log("Error sending local notification:", error));
+        
+        // Navigate after successful update
+        setTimeout(() => {
+          setIsUpdating(false);
+        }, 500);
+      })
+      .catch(error => {
+        setIsUpdating(false);
+        console.log("Update failed:", error);
+        
+        // Revert statusChange back to original status
+        setStatusChange(item.status || "3");
+        
+        // Show error message
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Update Failed',
+          text2: 'Please try again',
+        });
+      });
+  };
+  
+  // This function updates the visual indicators based on the status
+  const updateStatusDisplay = (status) => {
+    console.log("Updating status display to:", status);
+    
+    if (status === "3") {
       setOrderStatus(<TrafficLight unavailable></TrafficLight>);
       setStatusText("pending");
       setCardColor("#E74C3C");
-    } else if (item.status === "2") {
+    } else if (status === "2") {
       setOrderStatus(<TrafficLight limited></TrafficLight>);
       setStatusText("shipped");
       setCardColor("#F1C40F");
-    } else {
+    } else if (status === "1") {
       setOrderStatus(<TrafficLight available></TrafficLight>);
       setStatusText("delivered");  
       setCardColor("#2ECC71");
+    } else {
+      // Handle unknown status
+      console.log("Unknown status:", status);
+      setOrderStatus(<TrafficLight unavailable></TrafficLight>);
+      setStatusText("unknown");
+      setCardColor("#95A5A6");
     }
-  }, [item.status]);
+  };
+
+  const handleViewDetails = () => {
+    if (navigation) {
+      // Use _id instead of id to match MongoDB document identifier
+      navigation.navigate("OrderDetail", { id: item._id });
+    }
+  };
 
   return (
-    <View style={[{ backgroundColor: cardColor }, styles.container]}>
-      {/* ... */}
-      {update ? (
-        <View>
-          <Picker
-            selectedValue={statusChange}
-            onValueChange={(itemValue) => setStatusChange(itemValue)}
+    <TouchableOpacity onPress={handleViewDetails}>
+      <View style={[{ backgroundColor: cardColor }, styles.container]}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.orderNumber}>Order Number: #{item._id}</Text>
+        </View>
+        <View style={styles.contentContainer}>
+          <Text style={styles.statusText}>
+            Status: {statusText} {orderStatus}
+          </Text>
+          <Text style={styles.addressText}>
+            Address: {item.shippingAddress1} {item.shippingAddress2 ? item.shippingAddress2 : ''}
+          </Text>
+          <Text style={styles.infoText}>City: {item.city}</Text>
+          <Text style={styles.infoText}>Country: {item.country}</Text>
+          <Text style={styles.infoText}>
+            Date Ordered: {item.dateOrdered ? item.dateOrdered.split("T")[0] : 'N/A'}
+          </Text>
+          
+          <View style={styles.priceContainer}>
+            <Text style={styles.priceLabel}>Price: </Text>
+            <Text style={styles.price}>$ {item.totalPrice}</Text>
+          </View>
+          
+          {update && (
+            <View style={styles.updateContainer}>
+              <Picker
+                selectedValue={statusChange}
+                onValueChange={(itemValue) => {
+                  console.log("Status changed to:", itemValue);
+                  setStatusChange(itemValue);
+                  // Don't update display until button is clicked
+                }}
+                style={styles.picker}
+                enabled={!isUpdating}
+              >
+                {codes.map((c) => (
+                  <Picker.Item key={c.code} label={c.name} value={c.code} />
+                ))}
+              </Picker>
+              
+              <EasyButton 
+                secondary 
+                large 
+                onPress={handleUpdateOrder}
+                disabled={isUpdating || statusChange === item.status}
+                style={[
+                  styles.updateButton,
+                  (isUpdating || statusChange === item.status) && styles.disabledButton
+                ]}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.buttonText}>Update</Text>
+                )}
+              </EasyButton>
+            </View>
+          )}
+          
+          <EasyButton 
+            primary 
+            medium 
+            onPress={handleViewDetails}
+            style={styles.detailsButton}
           >
-            {codes.map((c) => (
-              <Picker.Item key={c.code} label={c.name} value={c.code} />
-            ))}
-          </Picker>
-          <EasyButton secondary large onPress={updateOrder}>
-            <Text style={{ color: "white" }}>Update</Text>
+            <Text style={styles.buttonText}>View Details</Text>
           </EasyButton>
         </View>
-      ) : null}
-    </View>
+      </View>
+    </TouchableOpacity>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    padding: 15,
     margin: 10,
     borderRadius: 10,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
-  title: {
-    backgroundColor: "#62B1F6",
-    padding: 5,
+  headerContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.2)',
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  orderNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  contentContainer: {
+    paddingTop: 5,
+  },
+  statusText: {
+    fontSize: 16,
+    marginBottom: 10,
+    fontWeight: '500',
+  },
+  addressText: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  infoText: {
+    fontSize: 14,
+    marginBottom: 5,
   },
   priceContainer: {
-    marginTop: 10,
+    marginTop: 15,
     alignSelf: "flex-end",
     flexDirection: "row",
+    alignItems: 'center',
+  },
+  priceLabel: {
+    fontSize: 16,
   },
   price: {
     color: "white",
     fontWeight: "bold",
+    fontSize: 18,
   },
+  updateContainer: {
+    marginTop: 15,
+  },
+  picker: {
+    backgroundColor: "white",
+    marginBottom: 15,
+    borderRadius: 5,
+    padding: 5,
+  },
+  updateButton: {
+    marginTop: 5,
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  detailsButton: {
+    marginTop: 15,
+    alignSelf: 'center',
+  }
 });
 
 export default OrderCard;

@@ -3,7 +3,6 @@ import { createDrawerNavigator } from "@react-navigation/drawer";
 import { View, Pressable, Text, StyleSheet } from "react-native";
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
-import { useAuth } from "../context/AuthContext";
 
 import Main from "./Main";
 import AdminNavigator from "./AdminNavigator";
@@ -13,8 +12,8 @@ const NativeDrawer = createDrawerNavigator();
 
 const DrawerNavigator = () => {
   const { isDarkMode, toggleTheme } = useTheme();
-  const { user } = useAuth();
-  const isAdminUser = user && (user.isAdmin === true || user.is_admin === 1);
+  
+  
 
   return (
     <NativeDrawer.Navigator
@@ -34,16 +33,7 @@ const DrawerNavigator = () => {
       )}
     >
       <NativeDrawer.Screen name="PackTrend" component={Main} />
-      {isAdminUser && (
-        <NativeDrawer.Screen
-          name="AdminNavigator"  // Change this from "Admin" to "AdminNavigator"
-          component={AdminNavigator}
-          options={{
-            title: "Admin Dashboard",
-            drawerIcon: () => <MaterialCommunityIcons name="cog" size={24} />,
-          }}
-        />
-      )}
+      
     </NativeDrawer.Navigator>
   );
 };

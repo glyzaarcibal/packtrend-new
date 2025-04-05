@@ -44,6 +44,11 @@ const orderSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  status: {
+    type: String,
+    required: true,
+    default: "3" // Default status is "pending" (3)
+  },
   totalPrice: {
     type: Number,
     required: true,
@@ -57,6 +62,10 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  paymentMethod: {
+    type: String,
+    default: "Cash"
+  }
 });
 
 orderSchema.virtual("id").get(function () {
