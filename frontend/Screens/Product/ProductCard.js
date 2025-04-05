@@ -5,7 +5,6 @@ import { useTheme } from "../../context/ThemeContext";
 import { addToCart } from '../../Redux/Actions/cartActions';
 import { useSelector, useDispatch } from 'react-redux';
 import Toast from 'react-native-toast-message';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthGlobal from '../../context/Store/AuthGlobal';
 
 var { width } = Dimensions.get("window");
@@ -27,7 +26,8 @@ const ProductCard = (props) => {
         setIsFavorite(!isFavorite);
     };
     
-    const handleAddToCart = () => {
+    // Updated handleAddToCart function for ProductCard.js
+    const handleAddToCart = async () => {
         setLoading(true);
         
         try {
@@ -36,44 +36,33 @@ const ProductCard = (props) => {
                 _id: _id,
                 name: name,
                 price: price,
-                images: images,
+                images: images && Array.isArray(images) ? [...images] : [], // Ensure images is an array
                 color: color,
                 type: type,
-                quantity: 1
+                // We no longer need to add a unique cartItemId here since we're going to
+                // merge identical products and track them by _id, color, and type
             };
             
             // Add to cart in Redux store
-            // Pass true as second parameter to force adding as a new item when appropriate
-            dispatch(addToCart(productToAdd, true))
-                .then(() => {
-                    // Show success message
-                    Toast.show({
-                        topOffset: 60,
-                        type: "success",
-                        text1: `${name} added to Cart`,
-                        text2: "Go to your cart to complete order"
-                    });
-                    setLoading(false);
-                })
-                .catch((error) => {
-                    console.error("Error adding to cart:", error);
-                    Toast.show({
-                        topOffset: 60,
-                        type: "error",
-                        text1: "Failed to add to cart",
-                        text2: error.message || "An unexpected error occurred"
-                    });
-                    setLoading(false);
-                });
+            await dispatch(addToCart(productToAdd));
+            
+            // Show success message
+            Toast.show({
+                topOffset: 60,
+                type: "success",
+                text1: `${name} added to Cart`,
+                text2: "Go to your cart to complete order"
+            });
         } catch (error) {
-            console.error("Exception in handleAddToCart:", error);
-            setLoading(false);
+            console.error("Error adding to cart:", error);
             Toast.show({
                 topOffset: 60,
                 type: "error",
-                text1: "Error adding to cart",
+                text1: "Failed to add to cart",
                 text2: error.message || "An unexpected error occurred"
             });
+        } finally {
+            setLoading(false);
         }
     };
     

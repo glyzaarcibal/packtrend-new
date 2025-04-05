@@ -2,8 +2,8 @@
 export const ADD_TO_CART = 'ADD_TO_CART';
 export const REMOVE_FROM_CART = 'REMOVE_FROM_CART';
 export const CLEAR_CART = 'CLEAR_CART';
-export const ADD_MULTIPLE_TO_CART = 'ADD_MULTIPLE_TO_CART';
-export const ADJUST_CART_ITEM_QTY = 'ADJUST_CART_ITEM_QTY';
+export const ADJUST_ITEM_QTY = 'ADJUST_ITEM_QTY';
+export const SYNC_CART = 'SYNC_CART';
 
 // Product Action Types
 export const FETCH_PRODUCTS_REQUEST = "FETCH_PRODUCTS_REQUEST";

@@ -142,67 +142,72 @@ const SingleProduct = (props) => {
         }
     };
     
-    const handleAddToCart = async () => {
-        if (!product) {
-            Toast.show({
-                topOffset: 60,
-                type: "error",
-                text1: "Product not found",
-                text2: "Unable to add to cart"
-            });
-            return;
+const handleAddToCart = async () => {
+    if (!product) {
+        Toast.show({
+            topOffset: 60,
+            type: "error",
+            text1: "Product not found",
+            text2: "Unable to add to cart"
+        });
+        return;
+    }
+    
+    // Check if product is in stock
+    if (product.stock <= 0 || product.countInStock <= 0) {
+        Toast.show({
+            topOffset: 60,
+            type: "error",
+            text1: "Out of Stock",
+            text2: "This product is currently unavailable"
+        });
+        return;
+    }
+    
+    setAddingToCart(true);
+    
+    try {
+        // Validate product has required properties
+        if (!product._id || !product.name || typeof product.price !== 'number') {
+            throw new Error("Invalid product data");
         }
         
-        // Check if product is in stock
-        if (product.stock <= 0 || product.countInStock <= 0) {
-            Toast.show({
-                topOffset: 60,
-                type: "error",
-                text1: "Out of Stock",
-                text2: "This product is currently unavailable"
-            });
-            return;
-        }
+        // Generate a unique cart item ID
+        const cartItemId = `${product._id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         
-        setAddingToCart(true);
+        // Add to cart with quantity and set forceNewItem to true
+        await dispatch(addToCart({ 
+            ...product, 
+            quantity: 1,
+            cartItemId: cartItemId 
+        }, true)); // Always force as new item
         
-        try {
-            // Validate product has required properties
-            if (!product._id || !product.name || typeof product.price !== 'number') {
-                throw new Error("Invalid product data");
-            }
-            
-            // Add to cart with quantity
-            await dispatch(addToCart({ 
-                ...product, 
-                quantity: 1 
-            }));
-            
-            // Save cart to AsyncStorage
-            await saveCartToStorage();
-            
-            Toast.show({
-                topOffset: 60,
-                type: "success",
-                text1: `${product.name} added to Cart`,
-                text2: "Go to your cart to complete order"
-            });
-            
-            // Navigate to Cart screen after adding product
-            navigation.navigate("Cart");
-        } catch (error) {
-            console.error("Add to cart error:", error);
-            
-            Toast.show({
-                topOffset: 60,
-                type: "error",
-                text1: "Failed to add to cart",
-                text2: error.message || "An unexpected error occurred"
-            });
-        } finally {
-            setAddingToCart(false);
-        }
-    };
+        // Save cart to AsyncStorage
+        await saveCartToStorage();
+        
+        Toast.show({
+            topOffset: 60,
+            type: "success",
+            text1: `${product.name} added to Cart`,
+            text2: "Go to your cart to complete order"
+        });
+        
+        // Navigate to Cart screen after adding product
+        navigation.navigate("Cart");
+    } catch (error) {
+        console.error("Add to cart error:", error);
+        
+        Toast.show({
+            topOffset: 60,
+            type: "error",
+            text1: "Failed to add to cart",
+            text2: error.message || "An unexpected error occurred"
+        });
+    } finally {
+        setAddingToCart(false);
+    }
+};
+
 
     const handleBuyNow = async () => {
         if (!product) {
@@ -234,11 +239,15 @@ const SingleProduct = (props) => {
                 throw new Error("Invalid product data");
             }
             
-            // Add to cart with quantity
+            // Generate a unique cart item ID
+            const cartItemId = `${product._id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+            
+            // Add to cart with quantity and force as new item
             await dispatch(addToCart({ 
                 ...product, 
-                quantity: 1 
-            }));
+                quantity: 1,
+                cartItemId: cartItemId
+            }, true)); // Always force as new item
             
             // Save cart to AsyncStorage
             await saveCartToStorage();
