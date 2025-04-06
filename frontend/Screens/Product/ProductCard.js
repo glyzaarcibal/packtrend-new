@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
-import { StyleSheet, Button, View, Dimensions, ImageBackground, Text, Pressable, ActivityIndicator } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { StyleSheet, View, Dimensions, ImageBackground, Text, Pressable, ActivityIndicator, TouchableOpacity } from "react-native";
+import { MaterialIcons, FontAwesome } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { addToCart } from '../../Redux/Actions/cartActions';
 import { useSelector, useDispatch } from 'react-redux';
@@ -17,7 +17,6 @@ const ProductCard = (props) => {
     const dispatch = useDispatch();
     const context = useContext(AuthGlobal);
     
-    // Get primary image or placeholder
     const imageUrl = images && images.length > 0 
         ? images[0] 
         : "https://cdn.pixabay.com/photo/2012/04/01/17/29/box-23649_960_720.png";
@@ -26,27 +25,21 @@ const ProductCard = (props) => {
         setIsFavorite(!isFavorite);
     };
     
-    // Updated handleAddToCart function for ProductCard.js
     const handleAddToCart = async () => {
         setLoading(true);
         
         try {
-            // Create a clean product object with only the necessary properties
             const productToAdd = {
                 _id: _id,
                 name: name,
                 price: price,
-                images: images && Array.isArray(images) ? [...images] : [], // Ensure images is an array
+                images: images && Array.isArray(images) ? [...images] : [],
                 color: color,
                 type: type,
-                // We no longer need to add a unique cartItemId here since we're going to
-                // merge identical products and track them by _id, color, and type
             };
             
-            // Add to cart in Redux store
             await dispatch(addToCart(productToAdd));
             
-            // Show success message
             Toast.show({
                 topOffset: 60,
                 type: "success",
@@ -67,29 +60,42 @@ const ProductCard = (props) => {
     };
     
     return (
-        <View style={[styles.container, { backgroundColor: isDarkMode ? "#1c1c1e" : "white" }]}>
+        <View style={[styles.container, { 
+            backgroundColor: isDarkMode ? "#1c1c1e" : "white",
+            transform: [{ perspective: 1000 }]
+        }]}>
+            {/* Header with Bagzz logo */}
+            <View style={[styles.header, styles.headerShadow]}>
+                <Text style={styles.logo}>Bagzz</Text>
+            </View>
+            
+            {/* Product name as prominent text */}
+            <View style={[styles.productNameContainer, styles.textShadow]}>
+                <Text style={[styles.productName, { color: isDarkMode ? "white" : "#2c3e50" }]}>
+                    {name && name.length > 15 ? name.substring(0, 12) + "..." : name}
+                </Text>
+            </View>
+            
             {/* Image as Background */}
-            <ImageBackground
-                style={styles.image}
-                source={{ uri: imageUrl }}
-                imageStyle={{ borderTopLeftRadius: 10, borderTopRightRadius: 10 }}
-            >
-                {/* Favorite Button */}
-                <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
-                    <MaterialIcons
-                        name={isFavorite ? "favorite" : "favorite-border"}
-                        size={24}
-                        color={isFavorite ? "red" : isDarkMode ? "white" : "black"}
-                    />
-                </Pressable>
-            </ImageBackground>
+            <View style={styles.imageContainer}>
+                <ImageBackground
+                    style={styles.image}
+                    source={{ uri: imageUrl }}
+                    imageStyle={{ borderRadius: 0 }}
+                >
+                    {/* Favorite Button */}
+                    <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
+                        <MaterialIcons
+                            name={isFavorite ? "favorite" : "favorite-border"}
+                            size={24}
+                            color={isFavorite ? "red" : isDarkMode ? "white" : "#7A87FF"}
+                        />
+                    </Pressable>
+                </ImageBackground>
+            </View>
 
             {/* Product Info */}
             <View style={styles.textContainer}>
-                <Text style={[styles.title, { color: isDarkMode ? "white" : "#333" }]}>
-                    {name && name.length > 15 ? name.substring(0, 12) + "..." : name}
-                </Text>
-                
                 {/* Display product type and color */}
                 <View style={styles.detailsRow}>
                     {type && (
@@ -109,16 +115,18 @@ const ProductCard = (props) => {
                     )}
                 </View>
                 
-                <Text style={styles.price}>${price}</Text>
+                <Text style={[styles.price, { color: "#7A87FF" }]}>${price}</Text>
                 
                 {loading ? (
-                    <ActivityIndicator size="small" color="green" />
+                    <ActivityIndicator size="small" color="#7A87FF" />
                 ) : (
-                    <Button 
-                        title={'Add'} 
-                        color={'green'}  
+                    <TouchableOpacity 
+                        style={styles.addToCartButton}
                         onPress={handleAddToCart}
-                    /> 
+                    >
+                        <FontAwesome name="shopping-bag" size={16} color="white" />
+                        <Text style={styles.addToCartText}>Add to Cart</Text>
+                    </TouchableOpacity>
                 )}
             </View>
         </View>
@@ -127,43 +135,100 @@ const ProductCard = (props) => {
 
 const styles = StyleSheet.create({
     container: {
-        width: width / 2 - 50,
-        borderRadius: 10,
+        width: width / 2 - 30,
+        borderRadius: 12,
         margin: 10,
         overflow: "hidden",
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        elevation: 6,
-        marginLeft: 30,
+        shadowOffset: { 
+            width: 0, 
+            height: 5 
+        },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 10,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        backgroundColor: 'white',
+        transform: [{ perspective: 1000 }],
+    },
+    header: {
+        backgroundColor: '#7A87FF',
+        padding: 12,
+        alignItems: 'center',
+        zIndex: 1,
+    },
+    headerShadow: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
+    },
+    logo: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 18,
+        letterSpacing: 1,
+        textShadowColor: 'rgba(0,0,0,0.2)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+    productNameContainer: {
+        padding: 15,
+        backgroundColor: '#f0f2ff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#d6daf0',
+    },
+    textShadow: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    productName: {
+        fontWeight: "bold",
+        fontSize: 16,
+        textAlign: 'center',
+    },
+    imageContainer: {
+        overflow: 'hidden',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
     },
     image: {
         width: "100%",
-        height: width / 2 - 50,
+        height: width / 2 - 80,
         justifyContent: "flex-end",
         alignItems: "flex-end",
-        padding: 10,
     },
     favoriteButton: {
         position: "absolute",
         right: 10,
         top: 10,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        borderRadius: 12,
+        padding: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
     },
     textContainer: {
-        padding: 10,
-        alignItems: "flex-start",
-    },
-    title: {
-        fontWeight: "bold",
-        fontSize: 14,
+        padding: 15,
+        alignItems: "center",
+        backgroundColor: '#f8f9ff',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
     },
     detailsRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         width: '100%',
-        marginTop: 3,
+        marginBottom: 10,
     },
     details: {
         fontSize: 12,
@@ -177,13 +242,39 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         borderWidth: 1,
         borderColor: '#ddd',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1,
+        elevation: 1,
     },
     price: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: "bold",
-        color: "#ff7e5f",
-        marginTop: 5,
-        marginBottom: 5,
+        marginVertical: 10,
+        textShadowColor: 'rgba(0,0,0,0.1)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 1,
+    },
+    addToCartButton: {
+        flexDirection: 'row',
+        backgroundColor: '#7A87FF',
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 25,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#6a76e5',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.4,
+        shadowRadius: 3,
+        elevation: 5,
+    },
+    addToCartText: {
+        color: 'white',
+        fontWeight: 'bold',
+        marginLeft: 8,
+        fontSize: 14,
     },
 });
 
