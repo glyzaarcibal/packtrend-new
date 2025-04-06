@@ -107,76 +107,84 @@ const Auth = (props) => {
         setError(null);
         
         try {
-            console.log("Attempting login with:", email);
-            console.log("Login URL:", `${baseURL}users/login`);
-            
-            const response = await axios.post(`${baseURL}users/login`, {
-                email,
-                password,
-                deviceId,
-                pushToken
-            });
-            
-            console.log("Login response status:", response.status);
-            console.log("Login response data:", response.data);
-            
-            if (!response.data || !response.data.token) {
-                throw new Error("Invalid response from server");
-            }
-            
-            const authToken = response.data.token;
-            let userData = response.data.user;
-            
-            // Log the raw user data
-            console.log("Raw user data:", userData);
-            console.log("isAdmin value:", userData.isAdmin);
-            console.log("isAdmin type:", typeof userData.isAdmin);
-            
-            // Ensure isAdmin is a boolean
-            const isAdminUser = userData.isAdmin === true || 
-                              userData.is_admin === true || 
-                              userData.isAdmin === 1 || 
-                              userData.is_admin === 1;
-            
-            userData = {
-                ...userData,
-                isAdmin: isAdminUser
-            };
-            
-            setIsAdmin(isAdminUser);
-            console.log("Login successful - User data:", userData);
-            console.log("Admin status:", isAdminUser);
-            
-            // Save to state
-            setUser(userData);
-            setToken(authToken);
-            
-            // Save to AsyncStorage (in both formats for compatibility)
-            await AsyncStorage.setItem('jwt', authToken);
-            await AsyncStorage.setItem('token', authToken);
-            await AsyncStorage.setItem('user', JSON.stringify(userData));
-            await AsyncStorage.setItem('userData', JSON.stringify(userData));
-            
-            // Try to update Redux safely
-            try {
-                safeDispatch(dispatch, "SET_CURRENT_USER", userData);
-            } catch (reduxError) {
-                console.warn("Redux dispatch error:", reduxError);
-                // Continue even if Redux update fails
-            }
-            
-            setLoading(false);
-            return { success: true };
+          console.log("Attempting login with:", email);
+          
+          const response = await axios.post(`${baseURL}users/login`, {
+            email,
+            password,
+            deviceId,
+            pushToken
+          });
+          
+          if (!response.data || !response.data.token) {
+            throw new Error("Invalid response from server");
+          }
+          
+          const authToken = response.data.token;
+          let userData = response.data.user;
+          
+          // Strict admin status normalization
+          const isAdminUser = userData.isAdmin === true;
+          
+          // Detailed logging for admin status
+          console.log("Login Debug:", {
+            rawUserData: userData,
+            rawIsAdmin: userData.isAdmin,
+            typeofIsAdmin: typeof userData.isAdmin,
+            normalizedIsAdmin: isAdminUser
+          });
+          
+          // Ensure user data has normalized admin status
+          userData = {
+            ...userData,
+            isAdmin: isAdminUser
+          };
+          
+          // Update states
+          setIsAdmin(isAdminUser);
+          setUser(userData);
+          setToken(authToken);
+          
+          // Save to AsyncStorage
+          await AsyncStorage.setItem('jwt', authToken);
+          await AsyncStorage.setItem('token', authToken);
+          await AsyncStorage.setItem('user', JSON.stringify(userData));
+          await AsyncStorage.setItem('userData', JSON.stringify(userData));
+          
+          // Try to update Redux safely
+          try {
+            safeDispatch(dispatch, "SET_CURRENT_USER", userData);
+          } catch (reduxError) {
+            console.warn("Redux dispatch error:", reduxError);
+          }
+          
+          setLoading(false);
+          return { success: true };
         } catch (error) {
-            console.error("Login error:", error);
-            console.error("Response data:", error.response?.data);
-            console.error("Status code:", error.response?.status);
-            
-            setError(error.response?.data?.message || "Login failed. Please try again.");
-            setLoading(false);
-            return { success: false, error: error.response?.data?.message || "Login failed" };
+          console.error("Login error:", error);
+          
+          setError(error.response?.data?.message || "Login failed. Please try again.");
+          setLoading(false);
+          return { success: false, error: error.response?.data?.message || "Login failed" };
         }
-    };
+      };
+      
+      // Robust admin status check
+      const checkIsAdmin = () => {
+        if (!user) return false;
+        
+        // Strict admin status check
+        const isAdmin = user.isAdmin === true;
+        
+        console.log("Admin Status Check:", {
+          user: user,
+          rawIsAdmin: user.isAdmin,
+          typeofIsAdmin: typeof user.isAdmin,
+          isAdmin: isAdmin
+        });
+        
+        return isAdmin;
+      };
 
     // Logout function
     const logout = async (pushToken = null) => {
@@ -235,14 +243,7 @@ const Auth = (props) => {
         }
     };
 
-    // Check if user is admin helper
-    const checkIsAdmin = () => {
-        if (!user) return false;
-        return user.isAdmin === true || 
-               user.is_admin === true || 
-               user.isAdmin === 1 || 
-               user.is_admin === 1;
-    };
+    
 
     return (
         <>

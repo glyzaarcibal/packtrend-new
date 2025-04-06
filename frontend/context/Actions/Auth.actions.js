@@ -5,6 +5,7 @@ import baseURL from "../../assets/common/baseurl";
 import axios from "axios";
 
 export const SET_CURRENT_USER = "SET_CURRENT_USER";
+export const LOGOUT_USER = "LOGOUT_USER";
 
 export const loginUser = (user, dispatch) => {
   // LOGIN REQUEST
@@ -47,6 +48,39 @@ export const loginUser = (user, dispatch) => {
     });
 };
 
+export const logoutAction = () => {
+  return async (dispatch) => {
+    try {
+      // Remove stored tokens and user data
+      await AsyncStorage.removeItem("jwt");
+      await AsyncStorage.removeItem("userId");
+
+      // Dispatch logout action to clear user in Redux store
+      dispatch({
+        type: LOGOUT_USER
+      });
+
+      // Show logout success toast
+      Toast.show({
+        topOffset: 60,
+        type: "success",
+        text1: "Logged Out",
+        text2: "You have been successfully logged out",
+      });
+    } catch (error) {
+      console.error("Logout Error:", error);
+      
+      // Show error toast if logout fails
+      Toast.show({
+        topOffset: 60,
+        type: "error",
+        text1: "Logout Failed",
+        text2: "An error occurred while logging out",
+      });
+    }
+  };
+};
+
 export const getUserProfile = (id) => {
   axios
     .get(`${baseURL}api/profile`, {
@@ -62,40 +96,7 @@ export const getUserProfile = (id) => {
     });
 };
 
-export const logoutUser = (dispatch) => {
-  // Get token from storage
-  AsyncStorage.getItem("jwt").then(token => {
-    // If token exists, call logout endpoint
-    if (token) {
-      axios
-        .post(
-          `${baseURL}api/logout`,
-          {},
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        )
-        .catch((error) => {
-          console.log("Logout error:", error);
-        });
-    }
-    
-    // Clear storage and dispatch logout action
-    AsyncStorage.removeItem("jwt");
-    AsyncStorage.removeItem("userId");
-    dispatch({
-      type: SET_CURRENT_USER,
-      payload: {}
-  });
-    
-    Toast.show({
-      topOffset: 60,
-      type: "success",
-      text1: "Logged Out",
-      text2: "Come back soon!",
-    });
-  });
-};
+
 
 export const setCurrentUser = (decoded) => {
   return {

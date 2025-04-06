@@ -64,11 +64,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password, deviceId = null, pushToken = null) => {
-    setIsLoading(true);
+    setLoading(true);
     setError(null);
     
     try {
       console.log("Attempting login with:", email);
+      
       const response = await axios.post(`${baseURL}users/login`, {
         email,
         password,
@@ -83,37 +84,70 @@ export const AuthProvider = ({ children }) => {
       const authToken = response.data.token;
       let userData = response.data.user;
       
-      // Ensure isAdmin is a boolean
+      // Strict admin status normalization
+      const isAdminUser = userData.isAdmin === true;
+      
+      // Detailed logging for admin status
+      console.log("Login Debug:", {
+        rawUserData: userData,
+        rawIsAdmin: userData.isAdmin,
+        typeofIsAdmin: typeof userData.isAdmin,
+        normalizedIsAdmin: isAdminUser
+      });
+      
+      // Ensure user data has normalized admin status
       userData = {
         ...userData,
-        isAdmin: userData.isAdmin === true || 
-                userData.is_admin === true || 
-                userData.isAdmin === 1 || 
-                userData.is_admin === 1
+        isAdmin: isAdminUser
       };
       
-      console.log("Login successful - User data:", userData);
-      console.log("Admin status:", userData.isAdmin);
-      
-      // Save to state
+      // Update states
+      setIsAdmin(isAdminUser);
       setUser(userData);
       setToken(authToken);
       
-      // Save to AsyncStorage (in both formats for compatibility)
+      // Save to AsyncStorage
       await AsyncStorage.setItem('jwt', authToken);
       await AsyncStorage.setItem('token', authToken);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       await AsyncStorage.setItem('userData', JSON.stringify(userData));
       
-      setIsLoading(false);
+      // Try to update Redux safely
+      try {
+        safeDispatch(dispatch, "SET_CURRENT_USER", userData);
+      } catch (reduxError) {
+        console.warn("Redux dispatch error:", reduxError);
+      }
+      
+      setLoading(false);
       return { success: true };
     } catch (error) {
-      console.error("Login error:", error.response?.data?.message || error.message);
+      console.error("Login error:", error);
+      
       setError(error.response?.data?.message || "Login failed. Please try again.");
-      setIsLoading(false);
+      setLoading(false);
       return { success: false, error: error.response?.data?.message || "Login failed" };
     }
   };
+  
+  // Robust admin status check
+  const checkIsAdmin = () => {
+    if (!user) return false;
+    
+    // Strict admin status check
+    const isAdmin = user.isAdmin === true;
+    
+    console.log("Admin Status Check:", {
+      user: user,
+      rawIsAdmin: user.isAdmin,
+      typeofIsAdmin: typeof user.isAdmin,
+      isAdmin: isAdmin
+    });
+    
+    return isAdmin;
+  };
+  
+  
 
   const logout = async (pushToken = null) => {
     setIsLoading(true);

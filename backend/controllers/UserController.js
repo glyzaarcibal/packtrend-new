@@ -93,6 +93,17 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
+    // Strict admin status normalization
+    const normalizedIsAdmin = user.isAdmin === true;
+
+    console.log("Login Debug:", {
+      userId: user._id,
+      email: user.email,
+      rawIsAdmin: user.isAdmin,
+      typeofIsAdmin: typeof user.isAdmin,
+      normalizedIsAdmin: normalizedIsAdmin
+    });
+
     // Update push token if provided
     const { pushToken } = req.body;
     if (pushToken) {
@@ -111,7 +122,7 @@ exports.login = async (req, res) => {
       name: user.name,
       email: user.email,
       image: user.image,
-      isAdmin: user.isAdmin,
+      isAdmin: normalizedIsAdmin,
     };
 
     res.status(200).json({ user: userResponse, token });

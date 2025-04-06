@@ -38,76 +38,69 @@ const ProductContainer = ({ navigation }) => {
     const [isRetrying, setIsRetrying] = useState(false);
     const [lastFetchTime, setLastFetchTime] = useState(0);
 
-    // Fetch data with retry logic and debounce protection
-    const fetchData = useCallback(async () => {
-        try {
-            const now = Date.now();
-            // Prevent rapid re-fetching (at least 2 seconds between fetches)
-            if (now - lastFetchTime < 2000 && lastFetchTime !== 0) {
-                console.log("Throttling fetch requests");
-                return;
-            }
-            
-            setLastFetchTime(now);
-            setIsRetrying(true);
-            
-            // Reset state variables
-            setFocus(false);
-            setActive(-1);
-            setShowSearchResults(false);
-            
-            // Show loading toast
-            Toast.show({
-                type: "info",
-                text1: "Loading",
-                text2: "Fetching latest products and brands...",
-                visibilityTime: 2000,
-            });
-            
-            // Fetch products and brands from API with proper error handling
-            const [productsResult, brandsResult] = await Promise.all([
-                dispatch(fetchProducts()),
-                dispatch(fetchBrands())
-            ]);
-            
-            // Check if both requests were successful
-            if (productsResult.success && brandsResult.success) {
-                Toast.show({
-                    type: "success",
-                    text1: "Data Loaded",
-                    text2: "Products and brands refreshed",
-                    visibilityTime: 2000,
-                });
-            } else {
-                // If products are available, still show them even if there's an error
-                if (products.length > 0) {
-                    Toast.show({
-                        type: "info",
-                        text1: "Partial Data",
-                        text2: "Some data may be outdated",
-                        visibilityTime: 2000,
-                    });
-                } else {
-                    throw new Error(
-                        productsResult.message || 
-                        brandsResult.message || 
-                        "Failed to fetch data"
-                    );
-                }
-            }
-        } catch (error) {
-            console.error("Error in fetchData:", error);
+    
+const fetchData = useCallback(async () => {
+    try {
+        const now = Date.now();
+        // Prevent rapid re-fetching (at least 2 seconds between fetches)
+        if (now - lastFetchTime < 2000 && lastFetchTime !== 0) {
+            console.log("Throttling fetch requests");
+            return;
+        }
+        
+        setLastFetchTime(now);
+        setIsRetrying(true);
+        
+        // Reset state variables
+        setFocus(false);
+        setActive(-1);
+        setShowSearchResults(false);
+        
+        // Show loading toast
+        Toast.show({
+            type: "info",
+            text1: "Loading",
+            text2: "Fetching latest products and brands...",
+            visibilityTime: 2000,
+        });
+        
+        // Fetch products and brands from API with proper error handling
+        await Promise.all([
+            dispatch(fetchProducts()),
+            dispatch(fetchBrands())
+        ]);
+        
+        // If we reach here without throwing an error, show success toast
+        Toast.show({
+            type: "success",
+            text1: "Data Loaded",
+            text2: "Products and brands refreshed",
+            visibilityTime: 2000,
+        });
+    } catch (error) {
+        console.error("Error in fetchData:", error);
+        
+        // If no products are available, show a more detailed error
+        if (products.length === 0) {
             Toast.show({
                 type: "error",
                 text1: "Network Error",
-                text2: error.message || "Please check your connection and try again.",
+                text2: error.message || "Failed to load products. Please check your connection.",
                 visibilityTime: 3000,
             });
-        } finally {
-            setIsRetrying(false);
+        } else {
+            // If products exist, show a less alarming message
+            Toast.show({
+                type: "info",
+                text1: "Partial Data",
+                text2: "Some data may be outdated",
+                visibilityTime: 2000,
+            });
         }
-    }, [dispatch, lastFetchTime, products]);
-
+    } finally {
+        setIsRetrying(false);
+    }
+}, [dispatch, lastFetchTime, products]);
     // Initial data fetch
     useEffect(() => {
         fetchData();
