@@ -1,7 +1,20 @@
 import React, { useEffect, useState, useContext } from 'react'
-import { Text, View, Button, SafeAreaView, StyleSheet, ActivityIndicator } from 'react-native'
+import { 
+    Text, 
+    View, 
+    SafeAreaView, 
+    StyleSheet, 
+    ActivityIndicator, 
+    TouchableOpacity,
+    ScrollView,
+    Image
+} from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import Icon from 'react-native-vector-icons/MaterialIcons'
+import Icon2 from 'react-native-vector-icons/FontAwesome'
+import Icon3 from 'react-native-vector-icons/Entypo'
+import Icon4 from 'react-native-vector-icons/MaterialCommunityIcons'
 
 import FormContainer from '../../Shared/FormContainer'
 import Input from '../../Shared/Input'
@@ -12,7 +25,7 @@ import Toast from 'react-native-toast-message'
 import { Picker } from '@react-native-picker/picker'
 import axios from 'axios'
 
-import baseURL from '../../../assets/common/baseurl'; // Use the correct baseURL
+import baseURL from '../../../assets/common/baseurl';
 
 const countries = require("../../../assets/data/countries.json");
 
@@ -446,8 +459,8 @@ const Checkout = (props) => {
     if (loading) {
         return (
             <View style={styles.centered}>
-                <ActivityIndicator size="large" color="#4A68E0" />
-                <Text style={styles.loadingText}>Loading...</Text>
+                <ActivityIndicator size="large" color="#6200ee" />
+                <Text style={styles.loadingText}>Loading your checkout details...</Text>
             </View>
         )
     }
@@ -455,210 +468,422 @@ const Checkout = (props) => {
     // Show login prompt if not authenticated
     if (!isAuthenticated) {
         return (
-            <View style={styles.authContainer}>
-                <Text style={styles.authTitle}>Please Login to Continue</Text>
-                <Text style={styles.authMessage}>
-                    You need to be logged in to complete your checkout.
-                </Text>
-                <Button 
-                    title="Login" 
-                    onPress={handleLogin} 
-                    color="#4A68E0"
-                />
-            </View>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.authContainer}>
+                    <Icon name="lock" size={50} color="#6200ee" style={styles.authIcon} />
+                    <Text style={styles.authTitle}>Secure Checkout</Text>
+                    <Text style={styles.authMessage}>
+                        Please login or create an account to complete your purchase and save your shipping details for faster checkout next time.
+                    </Text>
+                    <TouchableOpacity style={styles.actionButton} onPress={handleLogin}>
+                        <Text style={styles.actionButtonText}>Login or Sign Up</Text>
+                        <Icon name="arrow-forward" size={20} color="#fff" style={styles.buttonIcon} />
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         )
     }
     
     // If authenticated but cart is empty
     if (orderItems.length === 0) {
         return (
-            <View style={styles.authContainer}>
-                <Text style={styles.authTitle}>Your Cart is Empty</Text>
-                <Text style={styles.authMessage}>
-                    Add some items to your cart before checkout.
-                </Text>
-                <Button 
-                    title="Go Shopping" 
-                    onPress={() => navigation.navigate("Home")} 
-                    color="#4A68E0"
-                />
-            </View>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.authContainer}>
+                    <Icon name="remove-shopping-cart" size={50} color="#6200ee" style={styles.authIcon} />
+                    <Text style={styles.authTitle}>Your Cart is Empty</Text>
+                    <Text style={styles.authMessage}>
+                        Looks like you haven't added any items to your cart yet. Start shopping to find amazing products!
+                    </Text>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate("Home")}>
+                        <Text style={styles.actionButtonText}>Browse Products</Text>
+                        <Icon name="shopping-basket" size={20} color="#fff" style={styles.buttonIcon} />
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         )
     }
     
     return (
-        <KeyboardAwareScrollView
-            viewIsInsideTabBar={true}
-            extraHeight={200}
-            enableOnAndroid={true}
-        >
-            <FormContainer title={"Shipping Address"}>
-                {profileError ? (
-                    <View style={styles.errorBox}>
-                        <Text style={styles.errorTitle}>
-                            Note: Using limited profile data
-                        </Text>
-                        <Text style={styles.errorText}>
-                            You can still complete your order. Please fill in your shipping details.
-                        </Text>
-                    </View>
-                ) : (
-                    userProfile && (
-                        <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>Hello, {userProfile.name}</Text>
-                            {userProfile.email && (
-                                <Text style={styles.profileEmail}>{userProfile.email}</Text>
-                            )}
-                        </View>
-                    )
-                )}
-                
-                <Input
-                    placeholder={"Phone *"}
-                    name={"phone"}
-                    value={phone}
-                    keyboardType={"numeric"}
-                    onChangeText={(text) => setPhone(text)}
-                />
-                <Input
-                    placeholder={"House/Building Number *"}
-                    name={"houseNumber"}
-                    value={houseNumber}
-                    onChangeText={(text) => setHouseNumber(text)}
-                />
-                <Input
-                    placeholder={"Street *"}
-                    name={"street"}
-                    value={street}
-                    onChangeText={(text) => setStreet(text)}
-                />
-                <Input
-                    placeholder={"Barangay *"}
-                    name={"barangay"}
-                    value={barangay}
-                    onChangeText={(text) => setBarangay(text)}
-                />
-                <Input
-                    placeholder={"City *"}
-                    name={"city"}
-                    value={city}
-                    onChangeText={(text) => setCity(text)}
-                />
-                <Input
-                    placeholder={"Zip Code *"}
-                    name={"zip"}
-                    value={zip}
-                    keyboardType={"numeric"}
-                    onChangeText={(text) => setZip(text)}
-                />
-                <View style={styles.pickerContainer}>
-                    <Text style={styles.pickerLabel}>Country:</Text>
-                    <Picker
-                        style={styles.picker}
-                        selectedValue={country}
-                        onValueChange={(itemValue) => setCountry(itemValue)}
-                    >
-                        {countries.map((c) => (
-                            <Picker.Item
-                                key={c.code}
-                                label={c.name}
-                                value={c.code}
-                            />
-                        ))}
-                    </Picker>
+        <SafeAreaView style={styles.safeArea}>
+            <KeyboardAwareScrollView
+                viewIsInsideTabBar={true}
+                extraHeight={200}
+                enableOnAndroid={true}
+                contentContainerStyle={styles.scrollContainer}
+            >
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Icon name="arrow-back" size={24} color="#6200ee" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Checkout</Text>
                 </View>
 
-                <View style={styles.buttonContainer}>
-                    <Button title="Confirm" onPress={() => checkOut()} color="#4A68E0" />
+                <View style={styles.formContainer}>
+                    <View style={styles.sectionHeader}>
+                        <Icon2 name="user" size={20} color="#6200ee" />
+                        <Text style={styles.sectionTitle}>Customer Information</Text>
+                    </View>
+
+                    {profileError ? (
+                        <View style={styles.errorBox}>
+                            <View style={styles.errorHeader}>
+                                <Icon name="error" size={20} color="#ff6d00" />
+                                <Text style={styles.errorTitle}>Profile Information Limited</Text>
+                            </View>
+                            <Text style={styles.errorText}>
+                                We couldn't load your full profile details, but you can still complete your order. Please verify your shipping information below.
+                            </Text>
+                        </View>
+                    ) : (
+                        userProfile && (
+                            <View style={styles.profileInfo}>
+                                <View style={styles.profileHeader}>
+                                    <Icon name="account-circle" size={24} color="#6200ee" />
+                                    <Text style={styles.profileName}>{userProfile.name}</Text>
+                                </View>
+                                {userProfile.email && (
+                                    <View style={styles.profileDetail}>
+                                        <Icon name="email" size={16} color="#666" />
+                                        <Text style={styles.profileEmail}>{userProfile.email}</Text>
+                                    </View>
+                                )}
+                            </View>
+                        )
+                    )}
+
+                    <View style={styles.sectionHeader}>
+                        <Icon3 name="address" size={20} color="#6200ee" />
+                        <Text style={styles.sectionTitle}>Shipping Address</Text>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon name="phone" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>Phone Number *</Text>
+                            <Input
+                                placeholder={"09123456789"}
+                                name={"phone"}
+                                value={phone}
+                                keyboardType={"phone-pad"}
+                                onChangeText={(text) => setPhone(text)}
+                                style={styles.input}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon name="home" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>House/Building Number *</Text>
+                            <Input
+                                placeholder={"123"}
+                                name={"houseNumber"}
+                                value={houseNumber}
+                                onChangeText={(text) => setHouseNumber(text)}
+                                style={styles.input}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon4 name="road" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>Street *</Text>
+                            <Input
+                                placeholder={"Main Street"}
+                                name={"street"}
+                                value={street}
+                                onChangeText={(text) => setStreet(text)}
+                                style={styles.input}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon name="location-city" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>Barangay *</Text>
+                            <Input
+                                placeholder={"Barangay 1"}
+                                name={"barangay"}
+                                value={barangay}
+                                onChangeText={(text) => setBarangay(text)}
+                                style={styles.input}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon name="location-on" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>City *</Text>
+                            <Input
+                                placeholder={"Manila"}
+                                name={"city"}
+                                value={city}
+                                onChangeText={(text) => setCity(text)}
+                                style={styles.input}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon name="markunread-mailbox" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>Zip Code *</Text>
+                            <Input
+                                placeholder={"1000"}
+                                name={"zip"}
+                                value={zip}
+                                keyboardType={"numeric"}
+                                onChangeText={(text) => setZip(text)}
+                                style={styles.input}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputRow}>
+                        <Icon name="public" size={20} color="#6200ee" style={styles.inputIcon} />
+                        <View style={styles.inputWrapper}>
+                            <Text style={styles.inputLabel}>Country</Text>
+                            <View style={styles.pickerWrapper}>
+                                <Picker
+                                    style={styles.picker}
+                                    selectedValue={country}
+                                    onValueChange={(itemValue) => setCountry(itemValue)}
+                                    dropdownIconColor="#6200ee"
+                                >
+                                    {countries.map((c) => (
+                                        <Picker.Item
+                                            key={c.code}
+                                            label={c.name}
+                                            value={c.code}
+                                        />
+                                    ))}
+                                </Picker>
+                            </View>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity 
+                        style={styles.confirmButton} 
+                        onPress={checkOut}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.confirmButtonText}>Proceed to Payment</Text>
+                        <Icon name="payment" size={20} color="#fff" style={styles.buttonIcon} />
+                    </TouchableOpacity>
                 </View>
-            </FormContainer>
-        </KeyboardAwareScrollView>
+            </KeyboardAwareScrollView>
+        </SafeAreaView>
     )
 }
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#f8f9fa'
+    },
+    scrollContainer: {
+        flexGrow: 1,
+        paddingBottom: 30
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0'
+    },
+    backButton: {
+        marginRight: 16
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: '#333'
+    },
+    formContainer: {
+        flex: 1,
+        padding: 16,
+        backgroundColor: '#fff',
+        margin: 16,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 3
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0'
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginLeft: 8,
+        color: '#333'
+    },
     centered: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20
+        padding: 20,
+        backgroundColor: '#fff'
     },
     loadingText: {
-        marginTop: 10,
+        marginTop: 16,
+        fontSize: 16,
         color: '#666'
     },
     authContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20
+        padding: 32,
+        backgroundColor: '#fff'
+    },
+    authIcon: {
+        marginBottom: 16
     },
     authTitle: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
-        marginBottom: 15,
-        color: '#333'
+        marginBottom: 16,
+        color: '#333',
+        textAlign: 'center'
     },
     authMessage: {
         fontSize: 16,
-        marginBottom: 30,
+        marginBottom: 32,
         textAlign: 'center',
-        color: '#666'
+        color: '#666',
+        lineHeight: 24
     },
     profileInfo: {
-        backgroundColor: '#f8f8f8',
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: '#e0e0e0'
+        backgroundColor: '#f5f5ff',
+        padding: 16,
+        borderRadius: 8,
+        marginBottom: 24
+    },
+    profileHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8
     },
     profileName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 5
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 8,
+        color: '#333'
+    },
+    profileDetail: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4
     },
     profileEmail: {
+        fontSize: 14,
+        marginLeft: 8,
         color: '#666'
     },
     errorBox: {
-        backgroundColor: '#fff8e1',
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: '#ffe0b2'
+        backgroundColor: '#fff3e0',
+        padding: 16,
+        borderRadius: 8,
+        marginBottom: 24
+    },
+    errorHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8
     },
     errorTitle: {
         fontSize: 16,
-        fontWeight: 'bold',
-        color: '#ff8f00',
-        marginBottom: 5
+        fontWeight: '600',
+        marginLeft: 8,
+        color: '#ff6d00'
     },
     errorText: {
         fontSize: 14,
-        color: '#666'
+        color: '#666',
+        lineHeight: 20
     },
-    pickerContainer: {
-        marginBottom: 20
+    inputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16
     },
-    pickerLabel: {
-        marginBottom: 5,
+    inputIcon: {
+        marginRight: 12,
+        width: 24
+    },
+    inputWrapper: {
+        flex: 1
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '500',
+        marginBottom: 6,
+        color: '#555'
+    },
+    input: {
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        height: 48,
         fontSize: 16
     },
-    picker: {
-        height: 50,
-        width: 300,
-        backgroundColor: '#f9f9f9',
+    pickerWrapper: {
         borderWidth: 1,
-        borderColor: '#e0e0e0',
-        borderRadius: 5
+        borderColor: '#ddd',
+        borderRadius: 8,
+        overflow: 'hidden'
     },
-    buttonContainer: {
-        width: '80%',
-        alignItems: "center",
-        marginTop: 20,
-        marginBottom: 30
+    picker: {
+        height: 48,
+        backgroundColor: '#fff'
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#6200ee',
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        elevation: 2
+    },
+    actionButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600'
+    },
+    buttonIcon: {
+        marginLeft: 8
+    },
+    confirmButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#6200ee',
+        paddingVertical: 16,
+        borderRadius: 8,
+        marginTop: 24,
+        elevation: 3
+    },
+    confirmButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600'
     }
 })
 
