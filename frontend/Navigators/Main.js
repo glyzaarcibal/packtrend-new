@@ -9,7 +9,7 @@ import HomeNavigator from "./HomeNavigator";
 import CartNavigator from "./CartNavigator";
 import UserNavigator from "./UserNavigator";
 import FavoritesNavigator from "./FavoritesNavigator";
-
+import AdminNavigator from "./AdminNavigator";
 const Tab = createBottomTabNavigator();
 
 const Main = () => {
@@ -43,6 +43,10 @@ const Main = () => {
         
         <Tab.Screen name="User" component={UserNavigator} options={{
           tabBarIcon: ({ color }) => <Icon name="user" color={color} size={30} />,
+        }} />
+
+        <Tab.Screen name="Admin" component={AdminNavigator} options={{
+          tabBarIcon: ({ color }) => <Icon name="cog" color={color} size={30} />,
         }} />
       </Tab.Navigator>
     </View>

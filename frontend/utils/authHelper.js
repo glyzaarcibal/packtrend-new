@@ -1,11 +1,8 @@
-// utils/authHelper.js
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-/**
- * Sets up authentication for axios requests
- * Adds the JWT token to the Authorization header
- */
+
 export const setupAxiosAuth = async () => {
   try {
     const token = await AsyncStorage.getItem('jwt');

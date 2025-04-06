@@ -3,6 +3,7 @@ import axios from 'axios';
 import baseURL from "../../assets/common/baseurl";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from "react-native-toast-message";
+import TokenManager from '../../utils/tokenManager'; // Update path as needed
 import { 
   ORDERS_LOADING,
   FETCH_ORDERS_SUCCESS,
@@ -18,13 +19,38 @@ export const fetchOrders = () => {
   return async (dispatch) => {
     dispatch({ type: ORDERS_LOADING });
     try {
-      const response = await axios.get(`${baseURL}all/orders`);
+      // Get fresh token
+      const token = await TokenManager.getToken();
+      
+      if (!token) {
+        throw new Error('Authentication token not found or invalid');
+      }
+      
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      };
+      
+      const response = await axios.get(`${baseURL}all/orders`, config);
       dispatch({
         type: FETCH_ORDERS_SUCCESS,
         payload: response.data.order
       });
     } catch (error) {
       console.log('Error fetching orders:', error);
+      
+      // Handle authentication errors
+      if (error.response?.status === 401) {
+        await TokenManager.removeToken();
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Session Expired',
+          text2: 'Please log in again',
+        });
+      }
+      
       dispatch({
         type: FETCH_ORDERS_FAIL,
         payload: error.response?.data?.message || 'Failed to fetch orders'
@@ -38,7 +64,12 @@ export const fetchUserOrders = () => {
   return async (dispatch) => {
     dispatch({ type: ORDERS_LOADING });
     try {
-      const token = await AsyncStorage.getItem('jwt');
+      // Get fresh token
+      const token = await TokenManager.getToken();
+      
+      if (!token) {
+        throw new Error('Authentication token not found or invalid');
+      }
       
       const config = {
         headers: {
@@ -53,6 +84,18 @@ export const fetchUserOrders = () => {
       });
     } catch (error) {
       console.log('Error fetching user orders:', error);
+      
+      // Handle authentication errors
+      if (error.response?.status === 401) {
+        await TokenManager.removeToken();
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Session Expired',
+          text2: 'Please log in again',
+        });
+      }
+      
       dispatch({
         type: FETCH_ORDERS_FAIL,
         payload: error.response?.data?.message || 'Failed to fetch orders'
@@ -66,10 +109,11 @@ export const updateOrderStatus = (orderId, status) => {
   return async (dispatch) => {
     dispatch({ type: UPDATE_ORDER_LOADING });
     try {
-      const token = await AsyncStorage.getItem('jwt');
+      // Get fresh token
+      const token = await TokenManager.getToken();
       
       if (!token) {
-        throw new Error('Authentication token not found');
+        throw new Error('Authentication token not found or invalid');
       }
 
       const config = {
@@ -108,16 +152,27 @@ export const updateOrderStatus = (orderId, status) => {
     } catch (error) {
       console.log('Error updating order:', error.response?.data || error.message);
       
+      // Handle authentication errors
+      if (error.response?.status === 401) {
+        await TokenManager.removeToken();
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Session Expired',
+          text2: 'Please log in again',
+        });
+      } else {
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Update Failed',
+          text2: 'Please try again',
+        });
+      }
+      
       dispatch({
         type: UPDATE_ORDER_FAIL,
         payload: error.response?.data?.message || 'Failed to update order'
-      });
-      
-      Toast.show({
-        topOffset: 60,
-        type: 'error',
-        text1: 'Update Failed',
-        text2: 'Please try again',
       });
       
       throw error;
@@ -129,10 +184,17 @@ export const updateOrderStatus = (orderId, status) => {
 export const placeOrder = (orderData) => {
   return async (dispatch) => {
     try {
-      const token = await AsyncStorage.getItem('jwt');
+      // Get fresh token
+      const token = await TokenManager.getToken();
       
       if (!token) {
-        throw new Error('Authentication token not found');
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Authentication Failed',
+          text2: 'Please log in again',
+        });
+        throw new Error('Authentication token not found or invalid');
       }
 
       const config = {
@@ -167,12 +229,23 @@ export const placeOrder = (orderData) => {
     } catch (error) {
       console.log('Error placing order:', error.response?.data || error.message);
       
-      Toast.show({
-        topOffset: 60,
-        type: 'error',
-        text1: 'Failed to Place Order',
-        text2: 'Please try again',
-      });
+      // Handle authentication errors
+      if (error.response?.status === 401) {
+        await TokenManager.removeToken();
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Session Expired',
+          text2: 'Please log in again',
+        });
+      } else {
+        Toast.show({
+          topOffset: 60,
+          type: 'error',
+          text1: 'Failed to Place Order',
+          text2: error.response?.data?.message || 'Please try again',
+        });
+      }
       
       throw error;
     }

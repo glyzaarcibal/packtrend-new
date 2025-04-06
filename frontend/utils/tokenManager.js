@@ -1,3 +1,4 @@
+// utils/TokenManager.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 class TokenManager {
@@ -13,9 +14,13 @@ class TokenManager {
         return null;
       }
       
-      // Optional: Add token expiration check if you have JWT decoding
-      // const isExpired = this.isTokenExpired(token);
-      // if (isExpired) return null;
+      // Basic validation
+      if (!token || typeof token !== 'string' || token.length < 10) {
+        console.log('Token format invalid');
+        return null;
+      }
+      
+      // We'll keep token age checking disabled until auth flow is working
       
       return token;
     } catch (error) {
@@ -31,6 +36,9 @@ class TokenManager {
         ['jwt', token],
         ['token', token]
       ]);
+      
+      // Store the token issue time for relative expiration checking
+      await AsyncStorage.setItem('tokenTimestamp', Date.now().toString());
     } catch (error) {
       console.error('Error setting token:', error);
     }
@@ -41,6 +49,7 @@ class TokenManager {
       await AsyncStorage.multiRemove([
         'jwt', 
         'token', 
+        'tokenTimestamp',
         'user', 
         'userData', 
         'pushToken'
@@ -50,16 +59,23 @@ class TokenManager {
     }
   }
 
-  // Optional: Implement token expiration check
-  // static isTokenExpired(token) {
-  //   try {
-  //     const decoded = jwt_decode(token);
-  //     return decoded.exp < Date.now() / 1000;
-  //   } catch (error) {
-  //     console.error('Token decoding error:', error);
-  //     return true;
-  //   }
-  // }
+  // Helper method to check relative token age
+  static async isTokenTooOld(maxAgeHours = 24) {
+    try {
+      const timestamp = await AsyncStorage.getItem('tokenTimestamp');
+      if (!timestamp) return true;
+      
+      const issueTime = parseInt(timestamp, 10);
+      const currentTime = Date.now();
+      const tokenAgeMs = currentTime - issueTime;
+      const tokenAgeHours = tokenAgeMs / (1000 * 60 * 60);
+      
+      return tokenAgeHours > maxAgeHours;
+    } catch (error) {
+      console.error('Error checking token age:', error);
+      return true; // Assume token is too old if we can't check
+    }
+  }
 }
 
 export default TokenManager;

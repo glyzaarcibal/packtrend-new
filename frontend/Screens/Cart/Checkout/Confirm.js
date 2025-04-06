@@ -1,14 +1,17 @@
+// screens/Cart/Checkout/Confirm.js
 import React, { useState, useEffect } from 'react'
 import { View, StyleSheet, Dimensions, ScrollView, Button, Text } from "react-native";
 import { Surface, Avatar, Divider } from 'react-native-paper';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { clearCart } from '../../../Redux/Actions/cartActions';
 import axios from 'axios';
 import baseURL from '../../../assets/common/baseurl';
 import Toast from 'react-native-toast-message';
+import TokenManager from '../../../utils/tokenManager'; // Update path as needed
+
 var { width, height } = Dimensions.get("window");
 
 const Confirm = (props) => {
@@ -19,13 +22,63 @@ const Confirm = (props) => {
     const dispatch = useDispatch()
     let navigation = useNavigation()
 
+    // Function to navigate to auth screen based on your app structure
+    const navigateToAuth = () => {
+        try {
+            // First, reset AsyncStorage by removing token
+            TokenManager.removeToken().then(() => {
+                console.log('Token removed, redirecting to User stack');
+                
+                // Navigate to the User stack which will automatically show Login
+                // since the UserNavigator checks for a token
+                navigation.navigate('User');
+                
+                // If the above doesn't work, try these alternatives:
+                
+                // Option 1: Complete navigation reset
+                // navigation.dispatch(
+                //    CommonActions.reset({
+                //        index: 0,
+                //        routes: [{ name: 'User' }],
+                //    })
+                // );
+                
+                // Option 2: Back to main stack if there's a drawer
+                // navigation.navigate('Main', { screen: 'User' });
+            });
+        } catch (error) {
+            console.error('Navigation error:', error);
+            // As a fallback, just go to the main screen
+            navigation.navigate('Home');
+        }
+    };
+
     useEffect(() => {
-        // Get token when component mounts
-        AsyncStorage.getItem("jwt")
-            .then((res) => {
-                setToken(res)
-            })
-            .catch((error) => console.log(error))
+        // Get token when component mounts using TokenManager
+        const getToken = async () => {
+            try {
+                const authToken = await TokenManager.getToken();
+                console.log('Token retrieved in Confirm:', authToken ? 'Valid token' : 'No token');
+                setToken(authToken);
+                
+                // If no token is found, show a message and navigate to login
+                if (!authToken) {
+                    Toast.show({
+                        topOffset: 60,
+                        type: "error",
+                        text1: "Authentication required",
+                        text2: "Please log in again",
+                    });
+                    setTimeout(() => {
+                        navigateToAuth();
+                    }, 1000);
+                }
+            } catch (error) {
+                console.log("Token retrieval error:", error);
+            }
+        };
+        
+        getToken();
     }, []);
 
     const confirmOrder = () => {
@@ -65,7 +118,7 @@ const Confirm = (props) => {
         // Debug: Log order data structure
         console.log("Order data being sent:", JSON.stringify(order, null, 2));
         
-        // Check for missing fields one by one with specific error messages
+        // Rest of your validation code remains the same...
         const missingFields = [];
         
         if (!order.orderItems) {
@@ -179,130 +232,164 @@ const Confirm = (props) => {
             return;
         }
     
-        // Validate token
-        if (!token) {
-            Toast.show({
-                topOffset: 60,
-                type: "error",
-                text1: "Authentication required",
-                text2: "Please login again",
-            });
-            return;
-        }
-
-        // Structure the data to match backend expectations
-        const serverOrder = {
-            cartItems: order.orderItems.map(item => ({
-                _id: item._id || item.id || item.product,
-                name: item.name,
-                quantity: item.quantity || 1,
-                price: item.price,
-                images: item.images || [item.image] || []
-            })),
-            totalPrice: calculatedTotal,
-            shippingAddress: {
-                address1: order.shippingAddress1,
-                address2: order.shippingAddress2 || '',
-                city: order.city,
-                zip: order.zip,
-                country: order.country
-            },
-            paymentMethod: order.paymentMethod || 'Cash'  // Default payment method
-        };
-    
-        // Right before the axios call - add comprehensive logging
-        console.log("Final order data check:");
-        console.log("totalPrice:", serverOrder.totalPrice, typeof serverOrder.totalPrice);
-        console.log("cartItems check:", serverOrder.cartItems.map(item => ({
-            name: item.name,
-            price: item.price,
-            type: typeof item.price,
-            quantity: item.quantity
-        })));
-    
-        const config = {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        }
-    
-        // Update URL to match the endpoint in orderRoutes.js
-        const url = `${baseURL}order`;
-        console.log("Sending request to:", url);
-        console.log("Formatted order data:", JSON.stringify(serverOrder, null, 2));
-    
-        // Make the request
-        axios
-            .post(url, serverOrder, config)
-            .then((res) => {
-                if (res.status == 200 || res.status == 201) {
-                    // Store order ID if returned by server
-                    if (res.data && res.data._id) {
-                        setOrderId(res.data._id);
-                    }
-                    
-                    // Set order success flag
-                    setOrderSuccess(true);
-                    
+        // Enhanced token validation - get fresh token right before the request
+        TokenManager.getToken()
+            .then(freshToken => {
+                if (!freshToken) {
                     Toast.show({
                         topOffset: 60,
-                        type: "success",
-                        text1: "Order Completed",
-                        text2: res.data.message || "Your order has been placed successfully",
+                        type: "error",
+                        text1: "Authentication required",
+                        text2: "Please login again",
                     });
-    
-                    // Store order ID in AsyncStorage for reference
-                    if (res.data && res.data._id) {
-                        AsyncStorage.setItem("lastOrderId", res.data._id.toString())
-                            .catch(err => console.error("Failed to save order ID:", err));
-                    }
-    
                     setTimeout(() => {
-                        dispatch(clearCart())
-                        navigation.navigate("Cart");
-                    }, 500);
+                        navigateToAuth();
+                    }, 1000);
+                    return;
                 }
-            })
-            .catch((error) => {
-                console.error("Order submission error:", error);
-                setOrderSuccess(false);
+
+                // Structure the data to match backend expectations
+                const serverOrder = {
+                    cartItems: order.orderItems.map(item => ({
+                        _id: item._id || item.id || item.product,
+                        name: item.name,
+                        quantity: item.quantity || 1,
+                        price: item.price,
+                        images: item.images || [item.image] || []
+                    })),
+                    totalPrice: calculatedTotal,
+                    shippingAddress: {
+                        address1: order.shippingAddress1,
+                        address2: order.shippingAddress2 || '',
+                        city: order.city,
+                        zip: order.zip,
+                        country: order.country
+                    },
+                    paymentMethod: order.paymentMethod || 'Cash'  // Default payment method
+                };
+            
+                // Right before the axios call - add comprehensive logging
+                console.log("Final order data check:");
+                console.log("totalPrice:", serverOrder.totalPrice, typeof serverOrder.totalPrice);
+                console.log("cartItems check:", serverOrder.cartItems.map(item => ({
+                    name: item.name,
+                    price: item.price,
+                    type: typeof item.price,
+                    quantity: item.quantity
+                })));
+            
+                const config = {
+                    headers: {
+                        Authorization: `Bearer ${freshToken}`
+                    }
+                };
+            
+                // Update URL to match the endpoint in orderRoutes.js
+                const url = `${baseURL}order`;
+                console.log("Sending request to:", url);
+                console.log("Formatted order data:", JSON.stringify(serverOrder, null, 2));
+            
+                // Make the request
+                axios
+                    .post(url, serverOrder, config)
+                    .then((res) => {
+                        if (res.status == 200 || res.status == 201) {
+                            // Store order ID if returned by server
+                            if (res.data && res.data._id) {
+                                setOrderId(res.data._id);
+                            }
+                            
+                            // Set order success flag
+                            setOrderSuccess(true);
+                            
+                            Toast.show({
+                                topOffset: 60,
+                                type: "success",
+                                text1: "Order Completed",
+                                text2: res.data.message || "Your order has been placed successfully",
+                            });
                 
-                // Log detailed error info
-                if (error.response) {
-                    // The server responded with a status code outside the 2xx range
-                    console.error("Server error data:", error.response.data);
-                    console.error("Server error status:", error.response.status);
-                    console.error("Server error headers:", error.response.headers);
-                    
-                    Toast.show({
-                        topOffset: 60,
-                        type: "error",
-                        text1: `Server error (${error.response.status})`,
-                        text2: error.response.data.message || "Please try again",
+                            // Store order ID in AsyncStorage for reference
+                            if (res.data && res.data._id) {
+                                AsyncStorage.setItem("lastOrderId", res.data._id.toString())
+                                    .catch(err => console.error("Failed to save order ID:", err));
+                            }
+                
+                            setTimeout(() => {
+                                dispatch(clearCart())
+                                navigation.navigate("Cart");
+                            }, 500);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("Order submission error:", error);
+                        setOrderSuccess(false);
+                        
+                        // Handle auth errors
+                        if (error.response?.status === 401) {
+                            Toast.show({
+                                topOffset: 60,
+                                type: "error",
+                                text1: "Authentication expired",
+                                text2: "Please log in again",
+                            });
+                            
+                            // Remove invalid token
+                            TokenManager.removeToken().then(() => {
+                                setTimeout(() => {
+                                    navigateToAuth();
+                                }, 1000);
+                            });
+                        } else {
+                            // Log detailed error info
+                            if (error.response) {
+                                // The server responded with a status code outside the 2xx range
+                                console.error("Server error data:", error.response.data);
+                                console.error("Server error status:", error.response.status);
+                                
+                                Toast.show({
+                                    topOffset: 60,
+                                    type: "error",
+                                    text1: `Server error (${error.response.status})`,
+                                    text2: error.response.data.message || "Please try again",
+                                });
+                            } else if (error.request) {
+                                // The request was made but no response was received
+                                console.error("No response received:", error.request);
+                                
+                                Toast.show({
+                                    topOffset: 60,
+                                    type: "error",
+                                    text1: "No response from server",
+                                    text2: "Check your internet connection",
+                                });
+                            } else {
+                                // Something happened in setting up the request
+                                console.error("Request setup error:", error.message);
+                                
+                                Toast.show({
+                                    topOffset: 60,
+                                    type: "error",
+                                    text1: "Request failed",
+                                    text2: error.message,
+                                });
+                            }
+                        }
                     });
-                } else if (error.request) {
-                    // The request was made but no response was received
-                    console.error("No response received:", error.request);
-                    
-                    Toast.show({
-                        topOffset: 60,
-                        type: "error",
-                        text1: "No response from server",
-                        text2: "Check your internet connection",
-                    });
-                } else {
-                    // Something happened in setting up the request
-                    console.error("Request setup error:", error.message);
-                    
-                    Toast.show({
-                        topOffset: 60,
-                        type: "error",
-                        text1: "Request failed",
-                        text2: error.message,
-                    });
-                }
+            })
+            .catch(error => {
+                console.error("Token refresh error:", error);
+                Toast.show({
+                    topOffset: 60,
+                    type: "error",
+                    text1: "Authentication Error",
+                    text2: "Please login again",
+                });
+                setTimeout(() => {
+                    navigateToAuth();
+                }, 1000);
             });
-    }
+    };
 
     // Function to check order status
     const checkOrderStatus = async () => {
@@ -317,9 +404,24 @@ const Confirm = (props) => {
         }
         
         try {
+            // Get fresh token
+            const freshToken = await TokenManager.getToken();
+            if (!freshToken) {
+                Toast.show({
+                    topOffset: 60,
+                    type: "error",
+                    text1: "Authentication required",
+                    text2: "Please login again",
+                });
+                setTimeout(() => {
+                    navigateToAuth();
+                }, 1000);
+                return;
+            }
+            
             const config = {
                 headers: {
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${freshToken}`
                 }
             };
             
@@ -346,15 +448,30 @@ const Confirm = (props) => {
         } catch (error) {
             console.error("Failed to check order status:", error);
             
-            Toast.show({
-                topOffset: 60,
-                type: "error",
-                text1: "Failed to check order",
-                text2: "Please try again later",
-            });
+            // Handle authentication errors
+            if (error.response?.status === 401) {
+                await TokenManager.removeToken();
+                Toast.show({
+                    topOffset: 60,
+                    type: "error",
+                    text1: "Session Expired",
+                    text2: "Please log in again",
+                });
+                setTimeout(() => {
+                    navigateToAuth();
+                }, 1000);
+            } else {
+                Toast.show({
+                    topOffset: 60,
+                    type: "error",
+                    text1: "Failed to check order",
+                    text2: "Please try again later",
+                });
+            }
         }
     }
     
+    // The rest of your component remains the same...
     return (
         <Surface>
             <ScrollView contentContainerStyle={styles.container} width="90%">
