@@ -155,7 +155,7 @@ const ProductReviewsScreen = (props) => {
             
             console.log(`Fetching product details for ID: ${productId}`);
             
-            // Get product details
+            // Get product details - FIXED URL PATH
             try {
               const productResponse = await axios.get(
                 `${baseURL}products/get/single/product/${productId}`
@@ -171,9 +171,9 @@ const ProductReviewsScreen = (props) => {
                 // Check if user has already reviewed this product
                 if (token && userData) {
                   try {
-                    // Correct URL path including "products/" prefix
+                    // FIXED URL PATH for reviews - REMOVED "products/" prefix
                     const reviewsResponse = await axios.get(
-                      `${baseURL}products/my-reviews/product/${productId}`,
+                      `${baseURL}my-reviews/product/${productId}`,
                       {
                         headers: { Authorization: `Bearer ${token}` }
                       }
@@ -289,9 +289,9 @@ const ProductReviewsScreen = (props) => {
       let response;
       
       if (existingReview) {
-        // Update existing review - with "products/" prefix
+        // Update existing review - REMOVED "products/" prefix
         response = await axios.put(
-          `${baseURL}products/edit/review/${existingReview._id}`,
+          `${baseURL}edit/review/${existingReview._id}`,
           reviewData,
           {
             headers: {
@@ -300,9 +300,9 @@ const ProductReviewsScreen = (props) => {
           }
         );
       } else {
-        // Create new review - with "products/" prefix
+        // Create new review - REMOVED "products/" prefix
         response = await axios.post(
-          `${baseURL}products/create/review/${productId}`,
+          `${baseURL}create/review/${productId}`,
           reviewData,
           {
             headers: {

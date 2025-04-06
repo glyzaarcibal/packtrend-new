@@ -23,6 +23,7 @@ import Error from "../Shared/Error";
 import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
+
 import mime from "mime";
 
 // Redux Actions
@@ -34,7 +35,7 @@ const ProductForm = (props) => {
     const navigation = useNavigation();
 
     // Get brands from Redux store
-    const { items: brands } = useSelector(state => state.brands);
+    const brands = useSelector(state => state.brands.brands);
 
     const [pickerValue, setPickerValue] = useState('');
     const [brand, setBrand] = useState('');
@@ -143,6 +144,33 @@ const ProductForm = (props) => {
         );
     };
 
+    // Direct API call to create product, bypassing Redux
+    const createProductDirectly = async (formData) => {
+        try {
+            const config = {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                    Authorization: `Bearer ${token}`,
+                }
+            };
+
+            console.log("Sending direct API request to:", `${baseURL}create/products`);
+            console.log("Form data keys:", Object.keys(formData));
+            
+            const response = await axios.post(
+                `${baseURL}create/products`,
+                formData,
+                config
+            );
+            
+            console.log("Direct API response:", response.data);
+            return response.data;
+        } catch (error) {
+            console.error("Direct API error:", error.response ? error.response.data : error.message);
+            throw error;
+        }
+    };
+
     // Add or update product
     const handleSubmit = async () => {
         // Validation
@@ -162,56 +190,82 @@ const ProductForm = (props) => {
         setLoading(true);
         setError("");
 
-        // Prepare form data
-        let formData = new FormData();
-        
-        // Prepare image if it's a URI (not a URL)
-        if (image && !image.startsWith('http')) {
-            const newImageUri = Platform.OS === 'ios' 
-                ? image.replace('file://', '')
-                : image;
-            
-            formData.append("images", {
-                uri: newImageUri,
-                type: mime.getType(newImageUri),
-                name: newImageUri.split("/").pop()
-            });
-        }
-
-        // Add other form fields
-        formData.append("name", name);
-        formData.append("price", price);
-        formData.append("description", description);
-        formData.append("brand", brand);
-        formData.append("color", color);
-        formData.append("type", type);
-        formData.append("stock", stock);
-        
         try {
+            // Create product data object first
+            const productData = {
+                name,
+                price,
+                description,
+                brand,
+                color,
+                type,
+                stock
+            };
+            
+            // Log the data we're about to send
+            console.log("Product data to send:", productData);
+            
+            // Prepare form data
+            const formData = new FormData();
+            
+            // Add all fields individually to form data
+            Object.keys(productData).forEach(key => {
+                formData.append(key, productData[key]);
+            });
+            
+            // Handle image
+            if (image && !image.startsWith('http')) {
+                console.log("Processing new image:", image);
+                
+                const newImageUri = Platform.OS === 'ios' 
+                    ? image.replace('file://', '')
+                    : image;
+                    
+                console.log("Processed image URI:", newImageUri);
+                
+                const imageObject = {
+                    uri: newImageUri,
+                    type: mime.getType(newImageUri) || 'image/jpeg',
+                    name: newImageUri.split("/").pop() || 'product_image.jpg'
+                };
+                
+                console.log("Image object:", imageObject);
+                formData.append("images", imageObject);
+            } else if (image && image.startsWith('http')) {
+                // If it's a URL and we're updating, we can keep the existing image
+                console.log("Using existing image URL:", image);
+                formData.append("existingImageUrl", image);
+            } else {
+                console.log("No image selected, using default");
+                // If no image was selected, we can use the default
+                formData.append("useDefaultImage", "true");
+            }
+
             let response;
             
-            // Dispatch create or update action
-            if (item) {
-                // Make sure we pass productId as a string
+            // Try direct API call first if creating a new product
+            if (!item) {
+                console.log("Creating new product directly via API");
+                try {
+                    response = await createProductDirectly(formData);
+                } catch (error) {
+                    console.error("Direct creation failed, trying through Redux");
+                    // Fall back to Redux approach
+                    response = await dispatch(createProduct(formData));
+                }
+            } else {
+                // For updates, we stick with the Redux approach
                 const productId = String(item._id);
                 console.log("Updating product with ID:", productId);
-                
-                // Update existing product
                 response = await dispatch(updateProduct({ 
                     productId, 
                     productData: formData 
                 }));
-            } else {
-                // Create new product
-                response = await dispatch(createProduct(formData));
             }
             
-            // Always set loading to false
-            setLoading(false);
+            console.log("Final API Response:", response);
             
-            console.log("API Response:", response);
-            
-            if (response.success) {
+            if (response && response.success) {
                 Toast.show({
                     type: "success",
                     text1: item ? "Product successfully updated" : "New Product added",
@@ -222,12 +276,11 @@ const ProductForm = (props) => {
                 Toast.show({
                     type: "error",
                     text1: item ? "Update failed" : "Creation failed",
-                    text2: response.message || "Something went wrong",
+                    text2: response?.message || "Something went wrong",
                     topOffset: 60
                 });
             }
         } catch (error) {
-            setLoading(false);
             console.error("Submit error:", error);
             Toast.show({
                 type: "error",
@@ -235,6 +288,8 @@ const ProductForm = (props) => {
                 text2: error?.message || "Please try again",
                 topOffset: 60
             });
+        } finally {
+            setLoading(false);
         }
     };
 

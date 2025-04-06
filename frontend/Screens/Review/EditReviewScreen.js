@@ -12,7 +12,7 @@ import {
   Platform,
   Image
 } from "react-native";
-import { AirbnbRating  } from '../Shared/AirbnbRating ';
+import { AirbnbRating } from "react-native-ratings";
 import { useSelector } from "react-redux";
 import axios from "axios";
 import baseURL from "../../assets/common/baseurl";
@@ -297,14 +297,13 @@ const EditReviewScreen = (props) => {
           
           <View style={styles.ratingContainer}>
             <Text style={styles.label}>Your Rating</Text>
-            <AirbnbRating 
+            <AirbnbRating
               count={5}
               defaultRating={rating}
               size={30}
               showRating={true}
               onFinishRating={(value) => setRating(value)}
             />
-
           </View>
           
           <View style={styles.commentContainer}>

@@ -79,8 +79,71 @@ export const fetchProducts = () => async (dispatch) => {
   }
 };
 
-// Rest of the code remains the same as in the previous version
-// (other action creators like selectProduct, createProduct, etc.)
+export const createProduct = (productData) => async (dispatch) => {
+  try {
+    dispatch({ type: CREATE_PRODUCT_REQUEST });
+
+    // Validate base URL
+    if (!baseURL) {
+      throw new Error("API base URL is not defined");
+    }
+
+    // Prepare form data for file upload
+    const formData = new FormData();
+
+    // Append all product data to formData
+    Object.keys(productData).forEach(key => {
+      if (key === 'images') {
+        // Handle image files separately
+        productData.images.forEach((file, index) => {
+          formData.append('images', file);
+        });
+      } else {
+        formData.append(key, productData[key]);
+      }
+    });
+
+    // Construct URL for product creation
+    const url = `${baseURL}create/products`;
+
+    // Configure axios request
+    const config = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      }
+    };
+
+    // Make API call
+    const { data } = await axios.post(url, formData, config);
+
+    dispatch({
+      type: CREATE_PRODUCT_SUCCESS,
+      payload: data.product
+    });
+
+    return {
+      success: true,
+      product: data.product
+    };
+  } catch (error) {
+    console.error("Create product error:", error);
+
+    // Customize error message
+    const errorMessage = error.response 
+      ? error.response.data.message 
+      : (error.message || "Failed to create product");
+
+    dispatch({
+      type: CREATE_PRODUCT_FAILURE,
+      payload: errorMessage
+    });
+
+    return {
+      success: false,
+      message: errorMessage
+    };
+  }
+};
 
 export const selectProduct = (product) => {
   return {
