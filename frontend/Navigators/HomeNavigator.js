@@ -36,6 +36,7 @@ function MyStack() {
                     headerShown: false,
                 }}
             />
+            
         </Stack.Navigator>
     )
 }

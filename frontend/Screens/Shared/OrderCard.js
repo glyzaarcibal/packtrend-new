@@ -122,78 +122,109 @@ const OrderCard = ({ item, update, navigation }) => {
       navigation.navigate("OrderDetail", { id: item._id });
     }
   };
+  
+  const handleReviewProducts = () => {
+    if (navigation && item && item.orderItems && item.orderItems.length > 0) {
+      // Navigate to a screen for reviewing products in this order
+      navigation.navigate("ProductReviews", { 
+        orderId: item._id,
+        orderItems: item.orderItems
+      });
+    } else {
+      Toast.show({
+        topOffset: 60,
+        type: 'error',
+        text1: 'No Products',
+        text2: 'This order has no products to review',
+      });
+    }
+  };
 
   return (
-    <TouchableOpacity onPress={handleViewDetails}>
-      <View style={[{ backgroundColor: cardColor }, styles.container]}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.orderNumber}>Order Number: #{item._id}</Text>
-        </View>
-        <View style={styles.contentContainer}>
-          <Text style={styles.statusText}>
-            Status: {statusText} {orderStatus}
-          </Text>
-          <Text style={styles.addressText}>
-            Address: {item.shippingAddress1} {item.shippingAddress2 ? item.shippingAddress2 : ''}
-          </Text>
-          <Text style={styles.infoText}>City: {item.city}</Text>
-          <Text style={styles.infoText}>Country: {item.country}</Text>
-          <Text style={styles.infoText}>
-            Date Ordered: {item.dateOrdered ? item.dateOrdered.split("T")[0] : 'N/A'}
-          </Text>
-          
-          <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Price: </Text>
-            <Text style={styles.price}>$ {item.totalPrice}</Text>
+    <View>
+      <TouchableOpacity onPress={handleViewDetails}>
+        <View style={[{ backgroundColor: cardColor }, styles.container]}>
+          <View style={styles.headerContainer}>
+            <Text style={styles.orderNumber}>Order Number: #{item._id}</Text>
           </View>
-          
-          {update && (
-            <View style={styles.updateContainer}>
-              <Picker
-                selectedValue={statusChange}
-                onValueChange={(itemValue) => {
-                  console.log("Status changed to:", itemValue);
-                  setStatusChange(itemValue);
-                  // Don't update display until button is clicked
-                }}
-                style={styles.picker}
-                enabled={!isUpdating}
-              >
-                {codes.map((c) => (
-                  <Picker.Item key={c.code} label={c.name} value={c.code} />
-                ))}
-              </Picker>
-              
-              <EasyButton 
-                secondary 
-                large 
-                onPress={handleUpdateOrder}
-                disabled={isUpdating || statusChange === item.status}
-                style={[
-                  styles.updateButton,
-                  (isUpdating || statusChange === item.status) && styles.disabledButton
-                ]}
-              >
-                {isUpdating ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.buttonText}>Update</Text>
-                )}
-              </EasyButton>
+          <View style={styles.contentContainer}>
+            <Text style={styles.statusText}>
+              Status: {statusText} {orderStatus}
+            </Text>
+            <Text style={styles.addressText}>
+              Address: {item.shippingAddress1} {item.shippingAddress2 ? item.shippingAddress2 : ''}
+            </Text>
+            <Text style={styles.infoText}>City: {item.city}</Text>
+            <Text style={styles.infoText}>Country: {item.country}</Text>
+            <Text style={styles.infoText}>
+              Date Ordered: {item.dateOrdered ? item.dateOrdered.split("T")[0] : 'N/A'}
+            </Text>
+            
+            <View style={styles.priceContainer}>
+              <Text style={styles.priceLabel}>Price: </Text>
+              <Text style={styles.price}>$ {item.totalPrice}</Text>
             </View>
-          )}
-          
-          <EasyButton 
-            primary 
-            medium 
-            onPress={handleViewDetails}
-            style={styles.detailsButton}
-          >
-            <Text style={styles.buttonText}>View Details</Text>
-          </EasyButton>
+            
+            {update && (
+              <View style={styles.updateContainer}>
+                <Picker
+                  selectedValue={statusChange}
+                  onValueChange={(itemValue) => {
+                    console.log("Status changed to:", itemValue);
+                    setStatusChange(itemValue);
+                    // Don't update display until button is clicked
+                  }}
+                  style={styles.picker}
+                  enabled={!isUpdating}
+                >
+                  {codes.map((c) => (
+                    <Picker.Item key={c.code} label={c.name} value={c.code} />
+                  ))}
+                </Picker>
+                
+                <EasyButton 
+                  secondary 
+                  large 
+                  onPress={handleUpdateOrder}
+                  disabled={isUpdating || statusChange === item.status}
+                  style={[
+                    styles.updateButton,
+                    (isUpdating || statusChange === item.status) && styles.disabledButton
+                  ]}
+                >
+                  {isUpdating ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Text style={styles.buttonText}>Update</Text>
+                  )}
+                </EasyButton>
+              </View>
+            )}
+            
+            <View style={styles.buttonContainer}>
+              <EasyButton 
+                primary 
+                medium 
+                onPress={handleViewDetails}
+              >
+                <Text style={styles.buttonText}>View Details</Text>
+              </EasyButton>
+              
+              {/* Only show review button for delivered orders */}
+              {statusText === "delivered" && (
+                <EasyButton 
+                  success
+                  medium 
+                  onPress={handleReviewProducts}
+                >
+                  <Text style={styles.buttonText}>Review Products</Text>
+                </EasyButton>
+              )}
+            </View>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -271,9 +302,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  detailsButton: {
+  buttonContainer: {
     marginTop: 15,
-    alignSelf: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   }
 });
 

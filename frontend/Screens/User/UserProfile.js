@@ -172,7 +172,16 @@ const UserProfile = ({ navigation }) => {
                         label="Phone" 
                         value={userProfile?.phone || 'Not Available'} 
                     />
+                    <TouchableOpacity 
+                    style={styles.menuItem}
+                    onPress={() => navigation.navigate('MyReview')}
+                >
+                    <Icon name="rate-review" size={20} color="#6979F8" style={styles.menuIcon} />
+                    <Text style={styles.menuText}>My Reviews</Text>
+                </TouchableOpacity>
                 </View>
+
+                
 
                 <TouchableOpacity 
                     style={styles.logoutButton}
@@ -208,6 +217,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#EEF0FF'
+    },
+    menuText:{
+        backgroundColor: 'white',
+        borderRadius: 16,
+        marginBottom: 30,
     },
     centered: {
         flex: 1,

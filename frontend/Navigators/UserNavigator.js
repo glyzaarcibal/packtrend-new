@@ -9,6 +9,10 @@ import Register from "../Screens/User/Register";
 import UserProfile from "../Screens/User/UserProfile";
 import OrderDetail from "../Screens/User/OrderDetail";
 import MyOrders from "../Screens/User/MyOrders";
+import ProductReviewsScreen from "../Screens/Review/ProductReviewsScreen";
+import EditReviewScreen from "../Screens/Review/EditReviewScreen";
+import MyReviewsScreen from "../Screens/Review/MyReviewsScreen";
+
 
 const Stack = createStackNavigator();
 
@@ -79,6 +83,27 @@ const UserNavigator = () => {
                         options={({ route }) => ({ 
                             title: `Order #${route.params?.id || ''}` 
                         })}
+                    />
+                    <Stack.Screen
+                        name="ProductReviews"
+                        component={ProductReviewsScreen}
+                        options={{
+                            title: "Review Products"
+                        }}
+                    />
+                    <Stack.Screen
+                        name="EditReview"
+                        component={EditReviewScreen}
+                        options={{
+                            title: "Edit Review"
+                        }}
+                    />
+                    <Stack.Screen
+                        name="MyReview"
+                        component={MyReviewsScreen}
+                        options={{
+                            title: "My Review"
+                        }}
                     />
                 </>
             ) : (

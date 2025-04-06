@@ -70,7 +70,7 @@ const OrderDetail = ({ route, navigation }) => {
     } else if (status === "2") {
       setStatusText("shipped");
     } else if (status === "1") {
-      setStatusText("delivered");
+      setStatusText("complete"); // Changed from "delivered" to "complete"
     } else {
       setStatusText("unknown");
     }

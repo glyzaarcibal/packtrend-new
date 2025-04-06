@@ -1,43 +1,16 @@
 import React from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 import { View, Text, StyleSheet } from "react-native";
-import { Button } from "react-native-paper";
-import { useAuth } from "../context/Store/Auth";
 
 import Orders from "../Screens/Admin/Orders";
 import AdminDashboard from "../Screens/Admin/AdminDashboard";
 import ProductForm from "../Screens/Admin/ProductForm";
 import Brand from "../Screens/Admin/Brand";
 
-// Restricted Access Screen
-const RestrictedAccessScreen = ({ navigation }) => {
-  const { logout } = useAuth();
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Access Denied</Text>
-      <Text style={styles.subtitle}>You do not have admin privileges</Text>
-      <Button 
-        mode="contained" 
-        onPress={() => {
-          logout();
-          navigation.replace('Login');
-        }}
-      >
-        Logout
-      </Button>
-    </View>
-  );
-};
 
 const AdminNavigator = () => {
-  const { isAdmin } = useAuth();
-
-  // If not admin, return restricted access screen
-  if (!isAdmin) {
-    return <RestrictedAccessScreen />;
-  }
-
+  
   const Stack = createStackNavigator();
 
   return (
