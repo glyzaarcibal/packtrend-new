@@ -1,16 +1,14 @@
-// screens/Cart/Checkout/Confirm.js
 import React, { useState, useEffect } from 'react'
-import { View, StyleSheet, Dimensions, ScrollView, Button, Text } from "react-native";
-import { Surface, Avatar, Divider } from 'react-native-paper';
-
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { View, StyleSheet, Dimensions, ScrollView, Image, Text } from "react-native";
+import { Surface, Divider, Button } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { clearCart } from '../../../Redux/Actions/cartActions';
 import axios from 'axios';
 import baseURL from '../../../assets/common/baseurl';
 import Toast from 'react-native-toast-message';
-import TokenManager from '../../../utils/tokenManager'; // Update path as needed
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 var { width, height } = Dimensions.get("window");
 
@@ -22,67 +20,15 @@ const Confirm = (props) => {
     const dispatch = useDispatch()
     let navigation = useNavigation()
 
-    // Function to navigate to auth screen based on your app structure
-    const navigateToAuth = () => {
-        try {
-            // First, reset AsyncStorage by removing token
-            TokenManager.removeToken().then(() => {
-                console.log('Token removed, redirecting to User stack');
-                
-                // Navigate to the User stack which will automatically show Login
-                // since the UserNavigator checks for a token
-                navigation.navigate('User');
-                
-                // If the above doesn't work, try these alternatives:
-                
-                // Option 1: Complete navigation reset
-                // navigation.dispatch(
-                //    CommonActions.reset({
-                //        index: 0,
-                //        routes: [{ name: 'User' }],
-                //    })
-                // );
-                
-                // Option 2: Back to main stack if there's a drawer
-                // navigation.navigate('Main', { screen: 'User' });
-            });
-        } catch (error) {
-            console.error('Navigation error:', error);
-            // As a fallback, just go to the main screen
-            navigation.navigate('Home');
-        }
-    };
-
     useEffect(() => {
-        // Get token when component mounts using TokenManager
-        const getToken = async () => {
-            try {
-                const authToken = await TokenManager.getToken();
-                console.log('Token retrieved in Confirm:', authToken ? 'Valid token' : 'No token');
-                setToken(authToken);
-                
-                // If no token is found, show a message and navigate to login
-                if (!authToken) {
-                    Toast.show({
-                        topOffset: 60,
-                        type: "error",
-                        text1: "Authentication required",
-                        text2: "Please log in again",
-                    });
-                    setTimeout(() => {
-                        navigateToAuth();
-                    }, 1000);
-                }
-            } catch (error) {
-                console.log("Token retrieval error:", error);
-            }
-        };
-        
-        getToken();
+        AsyncStorage.getItem("jwt")
+            .then((res) => {
+                setToken(res)
+            })
+            .catch((error) => console.log(error))
     }, []);
 
     const confirmOrder = () => {
-        // Check if finalOrder structure exists
         if (!finalOrder) {
             Toast.show({
                 topOffset: 60,
@@ -114,11 +60,8 @@ const Confirm = (props) => {
         }
     
         const order = finalOrder.order.order;
-        
-        // Debug: Log order data structure
         console.log("Order data being sent:", JSON.stringify(order, null, 2));
         
-        // Rest of your validation code remains the same...
         const missingFields = [];
         
         if (!order.orderItems) {
@@ -133,12 +76,10 @@ const Confirm = (props) => {
             return;
         }
         
-        // Calculate totalPrice if missing or ensure it's a valid number
         let calculatedTotal = 0;
         let hasValidPrice = true;
     
         try {
-            // Verify each item has a valid price
             calculatedTotal = order.orderItems.reduce((total, item, index) => {
                 if (typeof item.price !== 'number' || isNaN(item.price)) {
                     console.error(`Invalid price for item at index ${index}:`, item);
@@ -150,18 +91,15 @@ const Confirm = (props) => {
                 return total + (item.price * quantity);
             }, 0);
             
-            // Ensure we have a valid total
             if (!hasValidPrice) {
                 throw new Error("Some items have invalid prices");
             }
             
-            // Ensure total price is a valid number
             if (typeof calculatedTotal !== 'number' || isNaN(calculatedTotal) || calculatedTotal <= 0) {
                 console.error("Invalid calculated total price:", calculatedTotal);
                 throw new Error("Total price must be a positive number");
             }
             
-            // Log the calculated total
             console.log("Calculated total price:", calculatedTotal);
         } catch (error) {
             Toast.show({
@@ -199,7 +137,6 @@ const Confirm = (props) => {
             return;
         }
         
-        // Validate orderItems structure
         const invalidItems = [];
         order.orderItems.forEach((item, index) => {
             const itemIssues = [];
@@ -232,166 +169,119 @@ const Confirm = (props) => {
             return;
         }
     
-        // Enhanced token validation - get fresh token right before the request
-        TokenManager.getToken()
-            .then(freshToken => {
-                if (!freshToken) {
+        if (!token) {
+            Toast.show({
+                topOffset: 60,
+                type: "error",
+                text1: "Authentication required",
+                text2: "Please login again",
+            });
+            return;
+        }
+
+        const serverOrder = {
+            cartItems: order.orderItems.map(item => ({
+                _id: item._id || item.id || item.product,
+                name: item.name,
+                quantity: item.quantity || 1,
+                price: item.price,
+                images: item.images || [item.image] || []
+            })),
+            totalPrice: calculatedTotal,
+            shippingAddress: {
+                address1: order.shippingAddress1,
+                address2: order.shippingAddress2 || '',
+                city: order.city,
+                zip: order.zip,
+                country: order.country
+            },
+            paymentMethod: order.paymentMethod || 'Cash'
+        };
+    
+        console.log("Final order data check:");
+        console.log("totalPrice:", serverOrder.totalPrice, typeof serverOrder.totalPrice);
+        console.log("cartItems check:", serverOrder.cartItems.map(item => ({
+            name: item.name,
+            price: item.price,
+            type: typeof item.price,
+            quantity: item.quantity
+        })));
+    
+        const config = {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        }
+    
+        const url = `${baseURL}order`;
+        console.log("Sending request to:", url);
+        console.log("Formatted order data:", JSON.stringify(serverOrder, null, 2));
+    
+        axios
+            .post(url, serverOrder, config)
+            .then((res) => {
+                if (res.status == 200 || res.status == 201) {
+                    if (res.data && res.data._id) {
+                        setOrderId(res.data._id);
+                    }
+                    
+                    setOrderSuccess(true);
+                    
+                    Toast.show({
+                        topOffset: 60,
+                        type: "success",
+                        text1: "Order Completed",
+                        text2: res.data.message || "Your order has been placed successfully",
+                    });
+    
+                    if (res.data && res.data._id) {
+                        AsyncStorage.setItem("lastOrderId", res.data._id.toString())
+                            .catch(err => console.error("Failed to save order ID:", err));
+                    }
+    
+                    setTimeout(() => {
+                        dispatch(clearCart())
+                        navigation.navigate("Cart");
+                    }, 500);
+                }
+            })
+            .catch((error) => {
+                console.error("Order submission error:", error);
+                setOrderSuccess(false);
+                
+                if (error.response) {
+                    console.error("Server error data:", error.response.data);
+                    console.error("Server error status:", error.response.status);
+                    console.error("Server error headers:", error.response.headers);
+                    
                     Toast.show({
                         topOffset: 60,
                         type: "error",
-                        text1: "Authentication required",
-                        text2: "Please login again",
+                        text1: `Server error (${error.response.status})`,
+                        text2: error.response.data.message || "Please try again",
                     });
-                    setTimeout(() => {
-                        navigateToAuth();
-                    }, 1000);
-                    return;
+                } else if (error.request) {
+                    console.error("No response received:", error.request);
+                    
+                    Toast.show({
+                        topOffset: 60,
+                        type: "error",
+                        text1: "No response from server",
+                        text2: "Check your internet connection",
+                    });
+                } else {
+                    console.error("Request setup error:", error.message);
+                    
+                    Toast.show({
+                        topOffset: 60,
+                        type: "error",
+                        text1: "Request failed",
+                        text2: error.message,
+                    });
                 }
-
-                // Structure the data to match backend expectations
-                const serverOrder = {
-                    cartItems: order.orderItems.map(item => ({
-                        _id: item._id || item.id || item.product,
-                        name: item.name,
-                        quantity: item.quantity || 1,
-                        price: item.price,
-                        images: item.images || [item.image] || []
-                    })),
-                    totalPrice: calculatedTotal,
-                    shippingAddress: {
-                        address1: order.shippingAddress1,
-                        address2: order.shippingAddress2 || '',
-                        city: order.city,
-                        zip: order.zip,
-                        country: order.country
-                    },
-                    paymentMethod: order.paymentMethod || 'Cash'  // Default payment method
-                };
-            
-                // Right before the axios call - add comprehensive logging
-                console.log("Final order data check:");
-                console.log("totalPrice:", serverOrder.totalPrice, typeof serverOrder.totalPrice);
-                console.log("cartItems check:", serverOrder.cartItems.map(item => ({
-                    name: item.name,
-                    price: item.price,
-                    type: typeof item.price,
-                    quantity: item.quantity
-                })));
-            
-                const config = {
-                    headers: {
-                        Authorization: `Bearer ${freshToken}`
-                    }
-                };
-            
-                // Update URL to match the endpoint in orderRoutes.js
-                const url = `${baseURL}order`;
-                console.log("Sending request to:", url);
-                console.log("Formatted order data:", JSON.stringify(serverOrder, null, 2));
-            
-                // Make the request
-                axios
-                    .post(url, serverOrder, config)
-                    .then((res) => {
-                        if (res.status == 200 || res.status == 201) {
-                            // Store order ID if returned by server
-                            if (res.data && res.data._id) {
-                                setOrderId(res.data._id);
-                            }
-                            
-                            // Set order success flag
-                            setOrderSuccess(true);
-                            
-                            Toast.show({
-                                topOffset: 60,
-                                type: "success",
-                                text1: "Order Completed",
-                                text2: res.data.message || "Your order has been placed successfully",
-                            });
-                
-                            // Store order ID in AsyncStorage for reference
-                            if (res.data && res.data._id) {
-                                AsyncStorage.setItem("lastOrderId", res.data._id.toString())
-                                    .catch(err => console.error("Failed to save order ID:", err));
-                            }
-                
-                            setTimeout(() => {
-                                dispatch(clearCart())
-                                navigation.navigate("Cart");
-                            }, 500);
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Order submission error:", error);
-                        setOrderSuccess(false);
-                        
-                        // Handle auth errors
-                        if (error.response?.status === 401) {
-                            Toast.show({
-                                topOffset: 60,
-                                type: "error",
-                                text1: "Authentication expired",
-                                text2: "Please log in again",
-                            });
-                            
-                            // Remove invalid token
-                            TokenManager.removeToken().then(() => {
-                                setTimeout(() => {
-                                    navigateToAuth();
-                                }, 1000);
-                            });
-                        } else {
-                            // Log detailed error info
-                            if (error.response) {
-                                // The server responded with a status code outside the 2xx range
-                                console.error("Server error data:", error.response.data);
-                                console.error("Server error status:", error.response.status);
-                                
-                                Toast.show({
-                                    topOffset: 60,
-                                    type: "error",
-                                    text1: `Server error (${error.response.status})`,
-                                    text2: error.response.data.message || "Please try again",
-                                });
-                            } else if (error.request) {
-                                // The request was made but no response was received
-                                console.error("No response received:", error.request);
-                                
-                                Toast.show({
-                                    topOffset: 60,
-                                    type: "error",
-                                    text1: "No response from server",
-                                    text2: "Check your internet connection",
-                                });
-                            } else {
-                                // Something happened in setting up the request
-                                console.error("Request setup error:", error.message);
-                                
-                                Toast.show({
-                                    topOffset: 60,
-                                    type: "error",
-                                    text1: "Request failed",
-                                    text2: error.message,
-                                });
-                            }
-                        }
-                    });
-            })
-            .catch(error => {
-                console.error("Token refresh error:", error);
-                Toast.show({
-                    topOffset: 60,
-                    type: "error",
-                    text1: "Authentication Error",
-                    text2: "Please login again",
-                });
-                setTimeout(() => {
-                    navigateToAuth();
-                }, 1000);
             });
-    };
+    }
 
-    // Function to check order status
     const checkOrderStatus = async () => {
         if (!orderId) {
             Toast.show({
@@ -404,30 +294,13 @@ const Confirm = (props) => {
         }
         
         try {
-            // Get fresh token
-            const freshToken = await TokenManager.getToken();
-            if (!freshToken) {
-                Toast.show({
-                    topOffset: 60,
-                    type: "error",
-                    text1: "Authentication required",
-                    text2: "Please login again",
-                });
-                setTimeout(() => {
-                    navigateToAuth();
-                }, 1000);
-                return;
-            }
-            
             const config = {
                 headers: {
-                    Authorization: `Bearer ${freshToken}`
+                    Authorization: `Bearer ${token}`
                 }
             };
             
             const response = await axios.get(`${baseURL}get/single/order`, config);
-            
-            // Find the specific order in the returned orders array
             const orderDetails = response.data.order.find(o => o._id === orderId);
             
             if (orderDetails) {
@@ -448,81 +321,98 @@ const Confirm = (props) => {
         } catch (error) {
             console.error("Failed to check order status:", error);
             
-            // Handle authentication errors
-            if (error.response?.status === 401) {
-                await TokenManager.removeToken();
-                Toast.show({
-                    topOffset: 60,
-                    type: "error",
-                    text1: "Session Expired",
-                    text2: "Please log in again",
-                });
-                setTimeout(() => {
-                    navigateToAuth();
-                }, 1000);
-            } else {
-                Toast.show({
-                    topOffset: 60,
-                    type: "error",
-                    text1: "Failed to check order",
-                    text2: "Please try again later",
-                });
-            }
+            Toast.show({
+                topOffset: 60,
+                type: "error",
+                text1: "Failed to check order",
+                text2: "Please try again later",
+            });
         }
     }
     
-    // The rest of your component remains the same...
     return (
-        <Surface>
-            <ScrollView contentContainerStyle={styles.container} width="90%">
+        <Surface style={styles.surface}>
+            <ScrollView contentContainerStyle={styles.container}>
                 <View style={styles.titleContainer}>
-                    <Text style={{ fontSize: 20, fontWeight: "bold" }}>Confirm Order</Text>
+                    <Text style={styles.headerText}>Confirm Order</Text>
                     {orderSuccess && (
                         <View style={styles.successContainer}>
+                            <Icon name="check-circle" size={24} color="#4CAF50" />
                             <Text style={styles.successText}>Order Placed Successfully!</Text>
-                            {orderId && <Text>Order ID: {orderId}</Text>}
+                            {orderId && <Text style={styles.orderIdText}>Order ID: {orderId}</Text>}
                         </View>
                     )}
                     {props.route.params ? (
-                        <View style={{ borderWidth: 1, borderColor: "orange" }} width="90%">
-                            <Text style={styles.title}>Shipping to:</Text>
-                            <View style={{ padding: 8 }}>
-                                <Text>Address: {finalOrder.order.order.shippingAddress1}</Text>
-                                <Text>Address2: {finalOrder.order.order.shippingAddress2}</Text>
-                                <Text>City: {finalOrder.order.order.city}</Text>
-                                <Text>Zip Code: {finalOrder.order.order.zip}</Text>
-                                <Text>Country: {finalOrder.order.order.country}</Text>
+                        <View style={styles.orderSummaryContainer}>
+                            <View style={styles.sectionHeader}>
+                                <Icon name="local-shipping" size={20} color="#555" />
+                                <Text style={styles.sectionTitle}>Shipping to:</Text>
                             </View>
-                            <Text style={styles.title}>items</Text>
+                            <View style={styles.shippingDetails}>
+                                <View style={styles.detailRow}>
+                                    <Icon name="location-on" size={16} color="#777" />
+                                    <Text style={styles.detailText}>Address: {finalOrder.order.order.shippingAddress1}</Text>
+                                </View>
+                                {finalOrder.order.order.shippingAddress2 && (
+                                    <View style={styles.detailRow}>
+                                        <Icon name="location-on" size={16} color="#777" />
+                                        <Text style={styles.detailText}>Address 2: {finalOrder.order.order.shippingAddress2}</Text>
+                                    </View>
+                                )}
+                                <View style={styles.detailRow}>
+                                    <Icon name="location-city" size={16} color="#777" />
+                                    <Text style={styles.detailText}>City: {finalOrder.order.order.city}</Text>
+                                </View>
+                                <View style={styles.detailRow}>
+                                    <Icon name="markunread-mailbox" size={16} color="#777" />
+                                    <Text style={styles.detailText}>Zip Code: {finalOrder.order.order.zip}</Text>
+                                </View>
+                                <View style={styles.detailRow}>
+                                    <Icon name="public" size={16} color="#777" />
+                                    <Text style={styles.detailText}>Country: {finalOrder.order.order.country}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.sectionHeader}>
+                                <Icon name="shopping-cart" size={20} color="#555" />
+                                <Text style={styles.sectionTitle}>Order Items</Text>
+                            </View>
 
                             {finalOrder.order.order.orderItems.map((item, index) => {
+                                const imageUri = item.image 
+                                    ? item.image 
+                                    : item.images && item.images.length > 0
+                                    ? item.images[0]
+                                    : 'https://cdn.pixabay.com/photo/2012/04/01/17/29/box-23649_960_720.png';
+                                
                                 return (
                                   <Surface 
                                     style={styles.itemContainer}
+                                    elevation={2}
                                     key={item.id ? item.id.toString() : item._id ? item._id.toString() : `item-${index}`}
                                   >
                                     <View style={styles.body}>
-                                        <Avatar.Image 
-                                            size={48} 
-                                            source={{
-                                                uri: item.image
-                                                    ? item.image 
-                                                    : item.images && item.images.length > 0
-                                                    ? item.images[0]
-                                                    : 'https://cdn.pixabay.com/photo/2012/04/01/17/29/box-23649_960_720.png'
-                                            }} 
-                                        />
+                                        <View style={styles.imageContainer}>
+                                            <Image 
+                                                source={{ uri: imageUri }}
+                                                style={styles.productImage}
+                                                resizeMode="contain"
+                                            />
+                                        </View>
                                         
                                         <View style={styles.itemDetails}>
-                                            <Text style={styles.itemName}>
+                                            <Text style={styles.itemName} numberOfLines={2}>
                                                 {item.name}
                                             </Text>
                                             
-                                            <Divider />
+                                            <Divider style={styles.divider} />
                                             
-                                            <Text style={styles.itemPrice}>
-                                                $ {item.price}
-                                            </Text>
+                                            <View style={styles.priceContainer}>
+                                                <Text style={styles.quantityText}>Qty: {item.quantity || 1}</Text>
+                                                <Text style={styles.itemPrice}>
+                                                    ${(item.price * (item.quantity || 1)).toFixed(2)}
+                                                </Text>
+                                            </View>
                                         </View>
                                     </View>
                                   </Surface>
@@ -530,19 +420,27 @@ const Confirm = (props) => {
                             })}
                         </View>
                     ) : null}
-                    <View style={{ alignItems: "center", margin: 20 }}>
+                    <View style={styles.buttonWrapper}>
                         {orderSuccess ? (
-                            <View style={styles.buttonContainer}>
-                                <Button
-                                    title={"Check Order Status"}
-                                    onPress={checkOrderStatus}
-                                />
-                            </View>
+                            <Button 
+                                mode="contained" 
+                                onPress={checkOrderStatus}
+                                style={styles.actionButton}
+                                labelStyle={styles.buttonLabel}
+                                icon="refresh"
+                            >
+                                Check Order Status
+                            </Button>
                         ) : (
-                            <Button
-                                title={"Place order"}
+                            <Button 
+                                mode="contained" 
                                 onPress={confirmOrder}
-                            />
+                                style={styles.actionButton}
+                                labelStyle={styles.buttonLabel}
+                                icon="check"
+                            >
+                                Place Order
+                            </Button>
                         )}
                     </View>
                 </View>
@@ -552,64 +450,152 @@ const Confirm = (props) => {
 }
 
 const styles = StyleSheet.create({
+    surface: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
     container: {
-        height: height,
-        padding: 8,
-        alignContent: "center",
-        backgroundColor: "white",
+        padding: 16,
+        paddingBottom: 32,
     },
     titleContainer: {
         justifyContent: "center",
         alignItems: "center",
-        margin: 8,
     },
-    title: {
-        alignSelf: "center",
-        margin: 8,
-        fontSize: 16,
+    headerText: {
+        fontSize: 24,
         fontWeight: "bold",
+        color: '#333',
+        marginBottom: 16,
+    },
+    orderSummaryContainer: {
+        width: '100%',
+        backgroundColor: 'white',
+        borderRadius: 10,
+        padding: 16,
+        marginVertical: 8,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: '#333',
+        marginLeft: 8,
+    },
+    shippingDetails: {
+        marginBottom: 16,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 4,
+    },
+    detailText: {
+        fontSize: 14,
+        color: '#555',
+        marginLeft: 8,
     },
     itemContainer: {
         backgroundColor: "white",
-        marginVertical: 5,
-        padding: 10,
-        borderRadius: 5,
+        marginVertical: 8,
+        padding: 12,
+        borderRadius: 8,
     },
     body: {
         alignItems: "center",
         flexDirection: "row",
     },
+    imageContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 8,
+        backgroundColor: '#f9f9f9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#eee',
+    },
+    productImage: {
+        width: '100%',
+        height: '100%',
+    },
     itemDetails: {
-        marginLeft: 10,
+        marginLeft: 16,
         flex: 1,
     },
     itemName: {
         fontSize: 16,
-        marginBottom: 5,
+        fontWeight: '500',
+        color: '#333',
+        marginBottom: 8,
+    },
+    divider: {
+        backgroundColor: '#e0e0e0',
+        marginVertical: 8,
+    },
+    priceContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    quantityText: {
+        fontSize: 14,
+        color: '#777',
     },
     itemPrice: {
-        fontSize: 14,
-        color: "#555",
-        marginTop: 5,
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#2E7D32',
     },
     successContainer: {
         backgroundColor: "#E8F5E9",
-        padding: 15,
-        borderRadius: 5,
-        marginVertical: 10,
+        padding: 16,
+        borderRadius: 8,
+        marginVertical: 16,
         alignItems: "center",
-        width: "90%",
+        width: "100%",
         borderWidth: 1,
         borderColor: "#81C784",
+        flexDirection: 'row',
     },
     successText: {
         color: "#2E7D32",
         fontSize: 16,
         fontWeight: "bold",
+        marginLeft: 8,
     },
-    buttonContainer: {
-        marginTop: 10,
-    }
+    orderIdText: {
+        color: "#555",
+        fontSize: 14,
+        marginTop: 4,
+    },
+    buttonWrapper: {
+        width: '100%',
+        marginTop: 24,
+        paddingHorizontal: 16,
+    },
+    actionButton: {
+        borderRadius: 8,
+        paddingVertical: 6,
+        backgroundColor: '#3f51b5',
+    },
+    buttonLabel: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
 });
 
 export default Confirm;
