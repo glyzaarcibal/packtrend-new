@@ -115,7 +115,7 @@ const ProductCard = (props) => {
                     )}
                 </View>
                 
-                <Text style={[styles.price, { color: "#7A87FF" }]}>₱ {price}</Text>
+                <Text style={[styles.price, { color: "#7A87FF" }]}>₱{price}</Text>
                 
                 {loading ? (
                     <ActivityIndicator size="small" color="#7A87FF" />

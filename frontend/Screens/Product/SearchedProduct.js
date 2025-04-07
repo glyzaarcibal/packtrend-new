@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Dimensions, 
-  FlatList, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  TextInput,
-  Image,
-  ScrollView,
-  Modal
+import {
+    View,
+    StyleSheet,
+    Dimensions,
+    FlatList,
+    TouchableOpacity,
+    ActivityIndicator,
+    TextInput,
+    Image,
+    ScrollView,
+    Modal
 } from 'react-native';
 import { Text, Button, IconButton, Surface } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
@@ -17,21 +17,25 @@ import debounce from 'lodash.debounce';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from "../../context/ThemeContext";
 import Toast from 'react-native-toast-message';
+import { addToCart } from '../../Redux/Actions/cartActions';
+import { useDispatch } from 'react-redux';
+
 
 const { width } = Dimensions.get("window");
 
 // Helper to validate MongoDB ObjectId format
 const isValidObjectId = (id) => {
-  return id && /^[0-9a-fA-F]{24}$/.test(id);
+    return id && /^[0-9a-fA-F]{24}$/.test(id);
 };
 
-const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
+const SearchedProduct = ({ searchQuery, products, brands = [] }) => {
     const { isDarkMode } = useTheme();
     const navigation = useNavigation();
     const [filteredProducts, setFilteredProducts] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showFilterModal, setShowFilterModal] = useState(false);
-    
+    const dispatch = useDispatch();
+
     // Filter states
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
@@ -42,18 +46,18 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
 
     // Predefined price ranges
     const priceRanges = [
-      { label: '0-200', min: '0', max: '200' },
-      { label: '200-400', min: '200', max: '400' },
-      { label: '400-600', min: '400', max: '600' }
+        { label: '0-200', min: '0', max: '200' },
+        { label: '200-400', min: '200', max: '400' },
+        { label: '400-600', min: '400', max: '600' }
     ];
 
     // Predefined rating options
     const ratingOptions = [
-      { label: '5 Stars', value: 5 },
-      { label: '4 Stars & Up', value: 4 },
-      { label: '3 Stars & Up', value: 3 },
-      { label: '2 Stars & Up', value: 2 },
-      { label: '1 Star & Up', value: 1 }
+        { label: '5 Stars', value: 5 },
+        { label: '4 Stars & Up', value: 4 },
+        { label: '3 Stars & Up', value: 3 },
+        { label: '2 Stars & Up', value: 2 },
+        { label: '1 Star & Up', value: 1 }
     ];
 
     // Extract all product types for category filtering
@@ -67,7 +71,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
 
     const filterProducts = () => {
         setLoading(true);
-        
+
         if (!products || products.length === 0) {
             setFilteredProducts([]);
             setLoading(false);
@@ -87,33 +91,33 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
         if (minPrice !== '' || maxPrice !== '') {
             filtered = filtered.filter(product => {
                 const price = parseFloat(product.price);
-                
+
                 // If both min and max are specified
                 if (minPrice !== '' && maxPrice !== '') {
                     const min = parseFloat(minPrice);
                     const max = parseFloat(maxPrice);
                     return price >= min && price <= max;
                 }
-                
+
                 // If only min is specified
                 if (minPrice !== '') {
                     const min = parseFloat(minPrice);
                     return price >= min;
                 }
-                
+
                 // If only max is specified
                 if (maxPrice !== '') {
                     const max = parseFloat(maxPrice);
                     return price <= max;
                 }
-                
+
                 return true;
             });
         }
 
         // Filter by categories
         if (selectedCategories.length > 0) {
-            filtered = filtered.filter(product => 
+            filtered = filtered.filter(product =>
                 selectedCategories.includes(product.type)
             );
         }
@@ -124,10 +128,10 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                 // Calculate average rating from product reviews
                 const reviews = product.reviews || [];
                 if (reviews.length === 0) return false;
-                
+
                 const totalRating = reviews.reduce((sum, review) => sum + (review.ratings || 0), 0);
                 const avgRating = totalRating / reviews.length;
-                
+
                 return avgRating >= selectedRating;
             });
         }
@@ -217,6 +221,41 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
         navigation.navigate("Product Detail", { productId: item._id });
     };
 
+    const handleAddToCart = async (item) => {
+        setLoading(true);
+        const images = item?.images && Array.isArray(item?.images) ? [...item?.images] : [];
+
+        try {
+            const productToAdd = {
+                _id: item?._id,
+                name: item?.name,
+                price: item?.price,
+                images: images,
+                color: item?.color,
+                type: item?.type,
+            };
+
+            await dispatch(addToCart(productToAdd));
+
+            Toast.show({
+                topOffset: 60,
+                type: "success",
+                text1: `${item.name} added to Cart`,
+                text2: "Go to your cart to complete order"
+            });
+        } catch (error) {
+            console.error("Error adding to cart:", error);
+            Toast.show({
+                topOffset: 60,
+                type: "error",
+                text1: "Failed to add to cart",
+                text2: error.message || "An unexpected error occurred"
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const renderItem = ({ item }) => {
         return (
             <View style={styles.productCard}>
@@ -226,9 +265,9 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                     <View style={styles.imageContainer}>
                         <View style={styles.image}>
                             {item.images && item.images.length > 0 ? (
-                                <Image 
-                                    style={styles.productImage} 
-                                    source={{ uri: item.images[0] }} 
+                                <Image
+                                    style={styles.productImage}
+                                    source={{ uri: item.images[0] }}
                                     resizeMode="cover"
                                 />
                             ) : (
@@ -246,20 +285,19 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                         <View style={styles.typeContainer}>
                             <Text style={styles.productType}>{item.type}</Text>
                             <View style={[
-                                styles.colorDot, 
+                                styles.colorDot,
                                 { backgroundColor: item.color || '#000' }
                             ]} />
                         </View>
                         <Text style={styles.productPrice}>${item.price}</Text>
-                        <Button 
+                        <Button
                             mode="contained"
                             style={styles.addButton}
                             labelStyle={styles.addButtonLabel}
                             uppercase={false}
-                            onPress={() => {
-                                // Handle add to cart here
-                                console.log("Add to cart:", item._id);
-                            }}
+                            onPress={()=>
+                                handleAddToCart(item)
+                            }
                         >
                             ADD
                         </Button>
@@ -272,7 +310,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
     return (
         <View style={[styles.container, { backgroundColor: isDarkMode ? "#121212" : "#fff" }]}>
             <View style={styles.filterToggleContainer}>
-                <Button 
+                <Button
                     mode="outlined"
                     onPress={() => setShowFilterModal(true)}
                     style={styles.filterToggleButton}
@@ -289,7 +327,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
             {loading ? (
                 <ActivityIndicator size="large" color="#FF5722" style={styles.center} />
             ) : filteredProducts.length > 0 ? (
-                <FlatList 
+                <FlatList
                     data={filteredProducts}
                     renderItem={renderItem}
                     keyExtractor={(item) => item._id?.toString() || Math.random().toString()}
@@ -337,7 +375,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                             ]}
                                             onPress={() => toggleCategory(category)}
                                         >
-                                            <Text 
+                                            <Text
                                                 style={[
                                                     styles.categoryText,
                                                     selectedCategories.includes(category) && styles.selectedCategoryText
@@ -348,18 +386,18 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                         </TouchableOpacity>
                                     ))}
                                 </View>
-                                
+
                                 {productCategories.length > 8 && (
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={styles.showMoreButton}
                                         onPress={() => setShowAllCategories(!showAllCategories)}
                                     >
                                         <Text style={styles.showMoreText}>
                                             {showAllCategories ? 'Show Less' : 'Show More'}
                                         </Text>
-                                        <Icon 
-                                            name={showAllCategories ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} 
-                                            size={24} 
+                                        <Icon
+                                            name={showAllCategories ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                                            size={24}
                                             color="#777"
                                         />
                                     </TouchableOpacity>
@@ -374,7 +412,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                             <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
                                 Rating
                             </Text>
-                            
+
                             <View style={styles.ratingGrid}>
                                 {ratingOptions.map((option, index) => (
                                     <TouchableOpacity
@@ -385,7 +423,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                         ]}
                                         onPress={() => selectRating(option.value)}
                                     >
-                                        <Text 
+                                        <Text
                                             style={[
                                                 styles.ratingText,
                                                 selectedRating === option.value && styles.selectedRatingText
@@ -397,7 +435,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                 ))}
                             </View>
                         </View>
-                        
+
                         <View style={styles.divider} />
 
                         {/* Price Range Section */}
@@ -405,7 +443,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                             <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
                                 Price Range (₱)
                             </Text>
-                            
+
                             <View style={styles.priceInputContainer}>
                                 <TextInput
                                     style={styles.priceInput}
@@ -415,9 +453,9 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                     onChangeText={setMinPrice}
                                     keyboardType="number-pad"
                                 />
-                                
+
                                 <View style={styles.priceSeparator} />
-                                
+
                                 <TextInput
                                     style={styles.priceInput}
                                     placeholder="400"
@@ -427,7 +465,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                     keyboardType="number-pad"
                                 />
                             </View>
-                            
+
                             <View style={styles.priceRangeGrid}>
                                 {priceRanges.map((range, index) => (
                                     <TouchableOpacity
@@ -438,7 +476,7 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
                                         ]}
                                         onPress={() => selectPriceRange(range)}
                                     >
-                                        <Text 
+                                        <Text
                                             style={[
                                                 styles.priceRangeText,
                                                 selectedPriceRange === range.label && styles.selectedPriceRangeText
@@ -454,15 +492,15 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
 
                     {/* Action Buttons */}
                     <View style={styles.actionButtons}>
-                        <TouchableOpacity 
-                            style={styles.resetButton} 
+                        <TouchableOpacity
+                            style={styles.resetButton}
                             onPress={resetFilters}
                         >
                             <Text style={styles.resetText}>Reset</Text>
                         </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            style={styles.applyButton} 
+
+                        <TouchableOpacity
+                            style={styles.applyButton}
                             onPress={applyFilters}
                         >
                             <Text style={styles.applyText}>Apply</Text>
@@ -573,7 +611,7 @@ const styles = StyleSheet.create({
     noResultsText: {
         fontSize: 16,
     },
-    
+
     // Modal Styles
     modalContainer: {
         flex: 1,
