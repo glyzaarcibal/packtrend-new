@@ -45,9 +45,7 @@ const Main = () => {
           tabBarIcon: ({ color }) => <Icon name="user" color={color} size={30} />,
         }} />
 
-        <Tab.Screen name="Admin" component={AdminNavigator} options={{
-          tabBarIcon: ({ color }) => <Icon name="cog" color={color} size={30} />,
-        }} />
+        
       </Tab.Navigator>
     </View>
   );

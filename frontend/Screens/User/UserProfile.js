@@ -127,6 +127,10 @@ const UserProfile = ({ navigation }) => {
         fetchProfile();
     };
 
+    const navigateToAdminDashboard = () => {
+        navigation.navigate('AdminDashboard');
+    };
+
     useFocusEffect(
         useCallback(() => {
             fetchProfile();
@@ -229,6 +233,17 @@ const UserProfile = ({ navigation }) => {
                         <Icon name="rate-review" size={20} color="#6979F8" style={styles.menuIcon} />
                         <Text style={styles.menuText}>My Reviews</Text>
                     </TouchableOpacity>
+                    
+                    {/* Admin Dashboard Button - Only visible for admin users */}
+                    {isAdminUser && (
+                        <TouchableOpacity 
+                            style={styles.menuItem}
+                            onPress={navigateToAdminDashboard}
+                        >
+                            <Icon name="dashboard" size={20} color="#6979F8" style={styles.menuIcon} />
+                            <Text style={styles.menuText}>Admin Dashboard</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {/* Logout Button */}
@@ -289,9 +304,18 @@ const styles = StyleSheet.create({
         marginTop: 5
     },
     menuText:{
-        backgroundColor: 'white',
-        borderRadius: 16,
-        marginBottom: 30,
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#333'
+    },
+    menuIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F0F2FF',
+        textAlign: 'center',
+        textAlignVertical: 'center',
+        marginRight: 12
     },
     centered: {
         flex: 1,
@@ -421,15 +445,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderBottomWidth: 1,
         borderBottomColor: '#F5F5F5'
-    },
-    menuIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#F0F2FF',
-        textAlign: 'center',
-        textAlignVertical: 'center',
-        marginRight: 12
     },
     // Logout Button
     logoutButton: {

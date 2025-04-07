@@ -13,6 +13,7 @@ import ProductReviewsScreen from "../Screens/Review/ProductReviewsScreen";
 import EditUserProfile from "../Screens/User/EditUserProfile";
 import MyReviewsScreen from "../Screens/Review/MyReviewsScreen";
 import EditReviewScreen from "../Screens/Review/EditReviewScreen";
+import AdminDashboard from "../Screens/Admin/AdminDashboard";
 
 
 
@@ -114,6 +115,13 @@ const UserNavigator = () => {
                         component={EditReviewScreen}
                         options={{
                             title: "My edit Review"
+                        }}
+                    />
+                    <Stack.Screen
+                        name="AdminDashboard"
+                        component={AdminDashboard}
+                        options={{
+                            title: "AdminDashboard"
                         }}
                     />
                 </>
