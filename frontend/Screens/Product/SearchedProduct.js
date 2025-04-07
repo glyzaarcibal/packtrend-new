@@ -84,16 +84,31 @@ const SearchedProduct = ({ searchQuery, products = [], brands = [] }) => {
         }
 
         // Filter by price range
-        if (minPrice !== '') {
-            filtered = filtered.filter(product => 
-                product.price >= parseInt(minPrice)
-            );
-        }
-        
-        if (maxPrice !== '') {
-            filtered = filtered.filter(product => 
-                product.price <= parseInt(maxPrice)
-            );
+        if (minPrice !== '' || maxPrice !== '') {
+            filtered = filtered.filter(product => {
+                const price = parseFloat(product.price);
+                
+                // If both min and max are specified
+                if (minPrice !== '' && maxPrice !== '') {
+                    const min = parseFloat(minPrice);
+                    const max = parseFloat(maxPrice);
+                    return price >= min && price <= max;
+                }
+                
+                // If only min is specified
+                if (minPrice !== '') {
+                    const min = parseFloat(minPrice);
+                    return price >= min;
+                }
+                
+                // If only max is specified
+                if (maxPrice !== '') {
+                    const max = parseFloat(maxPrice);
+                    return price <= max;
+                }
+                
+                return true;
+            });
         }
 
         // Filter by categories

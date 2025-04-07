@@ -179,7 +179,7 @@ const Cart = () => {
             
             {/* Price */}
             <Text style={styles.productPrice}>
-              ${item.price ? item.price.toFixed(2) : "0.00"}
+            ₱ {item.price ? item.price.toFixed(2) : "0.00"}
             </Text>
           </View>
           
@@ -332,7 +332,7 @@ const Cart = () => {
           <View style={styles.orderSummary}>
             <View style={styles.simpleSummaryRow}>
               <Text style={styles.summaryTitle}>Order Summary</Text>
-              <Text style={styles.totalAmount}>${total.toFixed(2)}</Text>
+              <Text style={styles.totalAmount}>₱ {total.toFixed(2)}</Text>
             </View>
             
             <Text style={styles.shippingInfo}>

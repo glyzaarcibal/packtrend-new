@@ -158,6 +158,56 @@ export const clearSelectedProduct = () => {
   };
 };
 
+
+export const deleteProduct = (id) => async (dispatch) => {
+  try {
+    // Validate product ID
+    if (!isValidObjectId(id)) {
+      throw new Error("Invalid product ID format");
+    }
+
+    dispatch({ type: DELETE_PRODUCT_REQUEST });
+
+    // Validate base URL
+    if (!baseURL) {
+      throw new Error("API base URL is not defined");
+    }
+
+    
+const url = `${baseURL}delete/product/${id}`;
+    
+    // Make API call to delete the product
+    const { data } = await axios.delete(url);
+
+    dispatch({
+      type: DELETE_PRODUCT_SUCCESS,
+      payload: id
+    });
+
+    return {
+      success: true,
+      message: data.message || "Product deleted successfully"
+    };
+  } catch (error) {
+    console.error("Delete product error:", error);
+
+    // Customize error message
+    const errorMessage = error.response 
+      ? error.response.data.message 
+      : (error.message || "Failed to delete product");
+
+    dispatch({
+      type: DELETE_PRODUCT_FAILURE,
+      payload: errorMessage
+    });
+
+    return {
+      success: false,
+      message: errorMessage
+    };
+  }
+};
+
 // Clear errors
 export const clearErrors = () => {
   return {

@@ -521,7 +521,7 @@ const Confirm = (props) => {
                                             <Divider />
                                             
                                             <Text style={styles.itemPrice}>
-                                                $ {item.price}
+                                               ₱  {item.price}
                                             </Text>
                                         </View>
                                     </View>

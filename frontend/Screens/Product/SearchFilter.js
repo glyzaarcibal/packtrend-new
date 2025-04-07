@@ -14,17 +14,30 @@ import { useTheme } from "../../context/ThemeContext";
 
 const { width } = Dimensions.get('window');
 
-const SearchFilter = ({ onApplyFilters, onClose, categories = [] }) => {
+const SearchFilter = ({ 
+  onApplyFilters, 
+  onClose, 
+  categories = [], 
+  initialFilters = {} 
+}) => {
   const { isDarkMode } = useTheme();
   
   // Price range states
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
+  const [minPrice, setMinPrice] = useState(
+    initialFilters.priceRange?.min ? String(initialFilters.priceRange.min) : ''
+  );
+  const [maxPrice, setMaxPrice] = useState(
+    initialFilters.priceRange?.max ? String(initialFilters.priceRange.max) : ''
+  );
   const [selectedPriceRange, setSelectedPriceRange] = useState(null);
 
   // Category and rating states
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedRating, setSelectedRating] = useState(null);
+  const [selectedCategories, setSelectedCategories] = useState(
+    initialFilters.categories || []
+  );
+  const [selectedRating, setSelectedRating] = useState(
+    initialFilters.rating || null
+  );
   const [showAllCategories, setShowAllCategories] = useState(false);
 
   // Predefined price ranges
@@ -43,38 +56,41 @@ const SearchFilter = ({ onApplyFilters, onClose, categories = [] }) => {
     { label: '1 Star & Up', value: 1 }
   ];
 
-  // Sample categories if none provided
-  const defaultCategories = [
-    'Motors', 'Babies & Kids', 'Women\'s Apparel', 'Cameras',
-    'Outdoor Recreation', 'Toys, Games & Collectibles',
-    'Hobbies & Stationery', 'Camping & Hiking',
-    'Women Accessories', 'Men\'s Apparel'
-  ];
+  // Determine categories to display
+  const displayCategories = categories.length > 0 ? categories : [];
+  const visibleCategories = showAllCategories 
+    ? displayCategories 
+    : displayCategories.slice(0, 8);
 
-  const displayCategories = categories.length > 0 ? categories : defaultCategories;
-  const visibleCategories = showAllCategories ? displayCategories : displayCategories.slice(0, 8);
+  // Validate price inputs
+  const validatePriceInput = (value) => {
+    // Remove any non-numeric characters
+    return value.replace(/[^0-9]/g, '');
+  };
 
   // Handle category selection
   const toggleCategory = (category) => {
-    if (selectedCategories.includes(category)) {
-      setSelectedCategories(selectedCategories.filter(c => c !== category));
-    } else {
-      setSelectedCategories([...selectedCategories, category]);
-    }
+    setSelectedCategories(prev => 
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
   };
 
   // Handle rating selection
   const selectRating = (rating) => {
-    setSelectedRating(rating === selectedRating ? null : rating);
+    setSelectedRating(prev => prev === rating ? null : rating);
   };
 
   // Handle predefined price range selection
   const selectPriceRange = (range) => {
     if (selectedPriceRange === range.label) {
+      // Deselect if already selected
       setSelectedPriceRange(null);
       setMinPrice('');
       setMaxPrice('');
     } else {
+      // Select new range
       setSelectedPriceRange(range.label);
       setMinPrice(range.min);
       setMaxPrice(range.max);
@@ -83,6 +99,7 @@ const SearchFilter = ({ onApplyFilters, onClose, categories = [] }) => {
 
   // Apply filters
   const applyFilters = () => {
+    // Construct filters object with validated inputs
     const filters = {
       categories: selectedCategories,
       rating: selectedRating,
@@ -91,6 +108,14 @@ const SearchFilter = ({ onApplyFilters, onClose, categories = [] }) => {
         max: maxPrice ? parseInt(maxPrice) : undefined
       }
     };
+    
+    // Validate price range
+    if (filters.priceRange.min && filters.priceRange.max && 
+        filters.priceRange.min > filters.priceRange.max) {
+      // Swap min and max if entered incorrectly
+      [filters.priceRange.min, filters.priceRange.max] = 
+        [filters.priceRange.max, filters.priceRange.min];
+    }
     
     onApplyFilters(filters);
   };
@@ -120,45 +145,50 @@ const SearchFilter = ({ onApplyFilters, onClose, categories = [] }) => {
 
       <ScrollView>
         {/* Categories Section */}
-        <View style={styles.section}>
-          <View style={styles.categoryGrid}>
-            {visibleCategories.map((category, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.categoryButton,
-                  selectedCategories.includes(category) && styles.selectedCategoryButton
-                ]}
-                onPress={() => toggleCategory(category)}
-              >
-                <Text 
+        {displayCategories.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: isDarkMode ? '#fff' : '#000' }]}>
+              Categories
+            </Text>
+            <View style={styles.categoryGrid}>
+              {visibleCategories.map((category, index) => (
+                <TouchableOpacity
+                  key={index}
                   style={[
-                    styles.categoryText,
-                    selectedCategories.includes(category) && styles.selectedCategoryText
+                    styles.categoryButton,
+                    selectedCategories.includes(category) && styles.selectedCategoryButton
                   ]}
+                  onPress={() => toggleCategory(category)}
                 >
-                  {category}
+                  <Text 
+                    style={[
+                      styles.categoryText,
+                      selectedCategories.includes(category) && styles.selectedCategoryText
+                    ]}
+                  >
+                    {category}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            {displayCategories.length > 8 && (
+              <TouchableOpacity 
+                style={styles.showMoreButton}
+                onPress={() => setShowAllCategories(!showAllCategories)}
+              >
+                <Text style={styles.showMoreText}>
+                  {showAllCategories ? 'Show Less' : 'Show More'}
                 </Text>
+                <Icon 
+                  name={showAllCategories ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} 
+                  size={24} 
+                  color="#777"
+                />
               </TouchableOpacity>
-            ))}
+            )}
           </View>
-          
-          {displayCategories.length > 8 && (
-            <TouchableOpacity 
-              style={styles.showMoreButton}
-              onPress={() => setShowAllCategories(!showAllCategories)}
-            >
-              <Text style={styles.showMoreText}>
-                {showAllCategories ? 'Show Less' : 'Show More'}
-              </Text>
-              <Icon 
-                name={showAllCategories ? 'keyboard-arrow-up' : 'keyboard-arrow-down'} 
-                size={24} 
-                color="#777"
-              />
-            </TouchableOpacity>
-          )}
-        </View>
+        )}
 
         <View style={styles.divider} />
 
@@ -202,20 +232,22 @@ const SearchFilter = ({ onApplyFilters, onClose, categories = [] }) => {
           <View style={styles.priceInputContainer}>
             <TextInput
               style={styles.priceInput}
-              placeholder="200"
+              placeholder="Min"
+              placeholderTextColor="#999"
               value={minPrice}
-              onChangeText={setMinPrice}
-              keyboardType="number-pad"
+              onChangeText={(text) => setMinPrice(validatePriceInput(text))}
+              keyboardType="numeric"
             />
             
             <View style={styles.priceSeparator} />
             
             <TextInput
               style={styles.priceInput}
-              placeholder="400"
+              placeholder="Max"
+              placeholderTextColor="#999"
               value={maxPrice}
-              onChangeText={setMaxPrice}
-              keyboardType="number-pad"
+              onChangeText={(text) => setMaxPrice(validatePriceInput(text))}
+              keyboardType="numeric"
             />
           </View>
           
