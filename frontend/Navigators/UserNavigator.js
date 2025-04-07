@@ -12,6 +12,7 @@ import MyOrders from "../Screens/User/MyOrders";
 import ProductReviewsScreen from "../Screens/Review/ProductReviewsScreen";
 import EditUserProfile from "../Screens/User/EditUserProfile";
 import MyReviewsScreen from "../Screens/Review/MyReviewsScreen";
+import EditReviewScreen from "../Screens/Review/EditReviewScreen";
 
 
 
@@ -94,10 +95,10 @@ const UserNavigator = () => {
                     />
                     
                     <Stack.Screen 
-                        name="EditReview" 
+                        name="EditUserProfile" 
                         component={EditUserProfile} 
                         options={{ 
-                            headerTitle: 'Edit Review',
+                            headerTitle: 'EditUserProfile',
                             headerShown: true,
                         }} 
                     />
@@ -106,6 +107,13 @@ const UserNavigator = () => {
                         component={MyReviewsScreen}
                         options={{
                             title: "My Review"
+                        }}
+                    />
+                    <Stack.Screen
+                        name="EditReviewScreen"
+                        component={EditReviewScreen}
+                        options={{
+                            title: "My edit Review"
                         }}
                     />
                 </>

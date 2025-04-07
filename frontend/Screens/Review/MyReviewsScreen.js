@@ -102,7 +102,7 @@ const MyReviewsScreen = (props) => {
   }, [getReviews]);
   
   const handleEditReview = (review) => {
-    props.navigation.navigate("EditReview", { review });
+    props.navigation.navigate("EditReviewScreen", { review });
   };
   
   const confirmDeleteReview = (reviewId) => {
