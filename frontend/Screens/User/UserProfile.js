@@ -81,6 +81,10 @@ const UserProfile = ({ navigation }) => {
         );
     };
 
+    const handleEditProfile = () => {
+        navigation.navigate('EditProfile');
+    };
+
     const handleTryAgain = () => {
         fetchProfile();
     };
@@ -124,7 +128,7 @@ const UserProfile = ({ navigation }) => {
                 style={styles.content}
                 contentContainerStyle={styles.contentContainer}
             >
-                {/* Content Header (kept) */}
+                {/* Content Header with Edit Button */}
                 <View style={styles.contentHeader}>
                     <Text style={styles.contentHeaderTitle}>My Profile</Text>
                     <View style={styles.statusContainer}>
@@ -156,6 +160,16 @@ const UserProfile = ({ navigation }) => {
                     </View>
                 </View>
 
+                <View style={styles.actionBar}>
+                    <TouchableOpacity 
+                        style={styles.editButton}
+                        onPress={handleEditProfile}
+                    >
+                        <Icon name="edit" size={16} color="#6979F8" />
+                        <Text style={styles.editButtonText}>Edit Profile</Text>
+                    </TouchableOpacity>
+                </View>
+
                 <View style={styles.infoSection}>
                     <ProfileField 
                         icon="person" 
@@ -173,15 +187,13 @@ const UserProfile = ({ navigation }) => {
                         value={userProfile?.phone || 'Not Available'} 
                     />
                     <TouchableOpacity 
-                    style={styles.menuItem}
-                    onPress={() => navigation.navigate('MyReview')}
-                >
-                    <Icon name="rate-review" size={20} color="#6979F8" style={styles.menuIcon} />
-                    <Text style={styles.menuText}>My Reviews</Text>
-                </TouchableOpacity>
+                        style={styles.menuItem}
+                        onPress={() => navigation.navigate('MyReview')}
+                    >
+                        <Icon name="rate-review" size={20} color="#6979F8" style={styles.menuIcon} />
+                        <Text style={styles.menuText}>My Reviews</Text>
+                    </TouchableOpacity>
                 </View>
-
-                
 
                 <TouchableOpacity 
                     style={styles.logoutButton}
@@ -241,7 +253,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         textAlign: 'center'
     },
-    // Content Header (kept)
+    // Content Header
     contentHeader: {
         alignItems: 'center',
         marginBottom: 20
@@ -302,6 +314,26 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '500',
         marginLeft: 4
+    },
+    // New Action Bar
+    actionBar: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginBottom: 20
+    },
+    editButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E0E5FF',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+    },
+    editButtonText: {
+        marginLeft: 8,
+        color: '#6979F8',
+        fontWeight: '500',
+        fontSize: 14
     },
     infoSection: {
         backgroundColor: 'white',
@@ -379,6 +411,25 @@ const styles = StyleSheet.create({
     footerText: {
         color: '#A0A8D0',
         fontSize: 14
+    },
+    // Menu item styles
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F5F5F5'
+    },
+    menuIcon: {
+        marginRight: 12,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F0F2FF',
+        textAlign: 'center',
+        textAlignVertical: 'center',
+        paddingTop: 8
     }
 });
 

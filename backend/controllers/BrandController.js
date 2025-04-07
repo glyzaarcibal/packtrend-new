@@ -3,7 +3,6 @@ const ImageFile = require("../utils/ImageFile");
 
 exports.createBrand = async (req, res, next) => {
   try {
-    // Handle case where no files are uploaded
     if (req.files && req.files.length > 0) {
       req.body.images = await ImageFile.uploadMultiple({
         imageFiles: req.files,
@@ -13,7 +12,6 @@ exports.createBrand = async (req, res, next) => {
       req.body.images = [];
     }
 
-    // Ensure description field is present
     if (!req.body.description) {
       req.body.description = req.body.name || "Brand description";
     }

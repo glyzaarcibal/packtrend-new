@@ -1,14 +1,11 @@
-// backend/services/pushNotificationService.js
 const { Expo } = require('expo-server-sdk');
 const User = require('../models/user');
 
-// Initialize Expo SDK
 const expo = new Expo();
 
 // Send push notification to a specific user
 exports.sendPushNotification = async (userId, message, data) => {
   try {
-    // Find user to get push tokens
     const user = await User.findById(userId);
     
     if (!user || !user.pushTokens || user.pushTokens.length === 0) {
@@ -16,7 +13,6 @@ exports.sendPushNotification = async (userId, message, data) => {
       return false;
     }
     
-    // Filter valid Expo push tokens
     const pushTokens = user.pushTokens.filter(token => 
       Expo.isExpoPushToken(token)
     );
@@ -26,7 +22,6 @@ exports.sendPushNotification = async (userId, message, data) => {
       return false;
     }
     
-    // Create notification messages
     const messages = pushTokens.map(token => ({
       to: token,
       sound: 'default',
@@ -37,7 +32,6 @@ exports.sendPushNotification = async (userId, message, data) => {
       channelId: 'order-updates',
     }));
     
-    // Send notifications in chunks
     const chunks = expo.chunkPushNotifications(messages);
     const tickets = [];
     
@@ -51,13 +45,11 @@ exports.sendPushNotification = async (userId, message, data) => {
       }
     }
     
-    // Process tickets to check for errors
     const receiptIds = [];
     for (const ticket of tickets) {
       if (ticket.status === 'error') {
         console.error(`Error sending notification: ${ticket.message}`);
         if (ticket.details && ticket.details.error === 'DeviceNotRegistered') {
-          // Remove invalid token
           const invalidToken = messages[tickets.indexOf(ticket)].to;
           await this.removePushToken(userId, invalidToken);
         }
@@ -67,9 +59,7 @@ exports.sendPushNotification = async (userId, message, data) => {
       }
     }
     
-    // Later we can check receipts if needed
     if (receiptIds.length > 0) {
-      // Store receipt IDs for later checking (optional)
       console.log('Receipt IDs for later verification:', receiptIds);
     }
     
@@ -80,9 +70,7 @@ exports.sendPushNotification = async (userId, message, data) => {
   }
 };
 
-// Send order status update notification
 exports.sendOrderStatusNotification = async (userId, order, prevStatus) => {
-  // Get status text for better readability
   const getStatusText = (statusCode) => {
     switch (statusCode) {
       case '1': return 'Delivered';
@@ -95,33 +83,27 @@ exports.sendOrderStatusNotification = async (userId, order, prevStatus) => {
   const currentStatusText = getStatusText(order.status);
   const previousStatusText = getStatusText(prevStatus);
   
-  // Create notification message
   const message = {
     title: `Order Status Updated: ${currentStatusText}`,
     body: `Your order #${order._id} has been updated from ${previousStatusText} to ${currentStatusText}.`
   };
   
-  // Include relevant data for deep linking
   const data = {
     screen: 'OrderDetail',
     orderId: order._id.toString(),
     status: order.status
   };
   
-  // Send the notification
   return this.sendPushNotification(userId, message, data);
 };
 
-// The existing token management functions from your code
 exports.registerPushToken = async (userId, pushToken, deviceId = null) => {
   try {
-    // First remove this token from any other users who might have it
     await User.updateMany(
       { pushTokens: pushToken, _id: { $ne: userId } },
       { $pull: { pushTokens: pushToken } }
     );
     
-    // Add metadata to the token
     const tokenWithMetadata = {
       token: pushToken,
       deviceId: deviceId || 'unknown',
@@ -129,33 +111,27 @@ exports.registerPushToken = async (userId, pushToken, deviceId = null) => {
       platform: deviceId ? (deviceId.startsWith('ios') ? 'ios' : 'android') : 'unknown'
     };
     
-    // Add to current user if not already present
     const user = await User.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    // Initialize pushTokensWithMetadata if it doesn't exist
     if (!user.pushTokensWithMetadata) {
       user.pushTokensWithMetadata = [];
     }
     
-    // Check if this token already exists for this user
     const tokenIndex = user.pushTokensWithMetadata.findIndex(
       item => item.token === pushToken
     );
     
     if (tokenIndex >= 0) {
-      // Update the existing token's metadata
       user.pushTokensWithMetadata[tokenIndex].lastUsed = new Date();
       if (deviceId) {
         user.pushTokensWithMetadata[tokenIndex].deviceId = deviceId;
       }
     } else {
-      // Add the new token with metadata
       user.pushTokensWithMetadata.push(tokenWithMetadata);
       
-      // Keep the simple pushTokens array in sync (for backward compatibility)
       if (!user.pushTokens.includes(pushToken)) {
         user.pushTokens.push(pushToken);
       }
@@ -169,10 +145,8 @@ exports.registerPushToken = async (userId, pushToken, deviceId = null) => {
   }
 };
 
-// Remove a push token (same as your implementation)
 exports.removePushToken = async (userId, pushToken) => {
   try {
-    // Remove token from user
     const result = await User.findByIdAndUpdate(
       userId,
       { 
@@ -191,7 +165,6 @@ exports.removePushToken = async (userId, pushToken) => {
   }
 };
 
-// Clean up stale tokens (same as your implementation)
 exports.cleanupStaleTokens = async (daysThreshold = 30) => {
   try {
     const staleDate = new Date();
@@ -204,17 +177,14 @@ exports.cleanupStaleTokens = async (daysThreshold = 30) => {
     let totalRemoved = 0;
     
     for (const user of users) {
-      // Find tokens to remove
       const staleTokens = user.pushTokensWithMetadata
         .filter(item => item.lastUsed < staleDate)
         .map(item => item.token);
       
       if (staleTokens.length > 0) {
-        // Remove from metadata array
         user.pushTokensWithMetadata = user.pushTokensWithMetadata
           .filter(item => item.lastUsed >= staleDate);
         
-        // Remove from simple array
         user.pushTokens = user.pushTokens
           .filter(token => !staleTokens.includes(token));
         
@@ -231,7 +201,6 @@ exports.cleanupStaleTokens = async (daysThreshold = 30) => {
   }
 };
 
-// Schedule regular cleanup (same as your implementation)
 exports.scheduleTokenCleanup = (intervalHours = 24) => {
   setInterval(() => {
     this.cleanupStaleTokens()

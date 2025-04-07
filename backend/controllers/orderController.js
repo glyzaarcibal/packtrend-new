@@ -4,25 +4,6 @@ const Order = require("../models/order");
 const nodemailer = require("nodemailer");
 const pushNotificationService = require("../utils/pushNotificationService");
 
-const getMonthName = (monthNumber) => {
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-  return months[monthNumber - 1]; // Adjust index by subtracting 1
-};
-
-// Add this function to your orderController.js
 
 exports.getSingleOrder = async (req, res) => {
   try {
@@ -41,7 +22,6 @@ exports.getSingleOrder = async (req, res) => {
       });
     }
     
-    // Check if the requesting user is the owner of the order or an admin
     if (req.user.role !== 'admin' && order.user._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -60,67 +40,10 @@ exports.getSingleOrder = async (req, res) => {
   }
 };
 
-// Add this function to orderController.js before the placeOrder function
 
-// Email notification function
 const sendOrderNotification = async (userEmail, products, orderDetails) => {
   try {
     console.log(`Would send order notification to ${userEmail} for ${products.length} products`);
-    // Uncomment this section when you have nodemailer configured properly
-    
-    /*
-    // Create transporter (configure with your email service)
-    let transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.your-email-provider.com',
-      port: process.env.EMAIL_PORT || 587,
-      secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
-      auth: {
-        user: process.env.EMAIL_USER || 'your-email@example.com',
-        pass: process.env.EMAIL_PASS || 'your-email-password'
-      }
-    });
-    
-    // Format products for email
-    const productList = products.map(product => `
-      <tr>
-        <td>${product.name}</td>
-        <td>${product.quantity}</td>
-        <td>$${product.price.toFixed(2)}</td>
-        <td>$${(product.price * product.quantity).toFixed(2)}</td>
-      </tr>
-    `).join('');
-    
-    // Create email content
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || '"Your Store" <orders@yourstore.com>',
-      to: userEmail,
-      subject: 'Your Order Confirmation',
-      html: `
-        <h1>Order Confirmation</h1>
-        <p>Thank you for your order!</p>
-        <h2>Order Details</h2>
-        <table border="1" cellpadding="5" cellspacing="0">
-          <tr>
-            <th>Product</th>
-            <th>Quantity</th>
-            <th>Price</th>
-            <th>Total</th>
-          </tr>
-          ${productList}
-          <tr>
-            <td colspan="3" align="right"><strong>Total:</strong></td>
-            <td>$${orderDetails.totalPrice.toFixed(2)}</td>
-          </tr>
-        </table>
-        <p>Payment Method: ${orderDetails.paymentMethod}</p>
-        <p>Thank you for shopping with us!</p>
-      `
-    };
-    
-    // Send email
-    let info = await transporter.sendMail(mailOptions);
-    console.log('Order notification email sent: %s', info.messageId);
-    */
     
     return true;
   } catch (error) {
@@ -489,53 +412,3 @@ exports.calculateTotalSalesPerProduct = async (req, res) => {
   }
 };
 
-exports.MonthlyIncome = async (req, res) => {
-  try {
-    const monthlyIncome = await Order.aggregate([
-      {
-        $match: {
-          orderStatus: "Order Received",
-        },
-      },
-      {
-        $project: {
-          month: { $month: "$createdAt" },
-          year: { $year: "$createdAt" },
-          totalPrice: "$totalPrice",
-        },
-      },
-      {
-        $group: {
-          _id: { month: "$month", year: "$year" },
-          value: { $sum: "$totalPrice" },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          label: {
-            $concat: [
-              { $toString: "$_id.month" },
-              " ",
-              { $toString: "$_id.year" },
-            ],
-          },
-          value: 1,
-        },
-      },
-      {
-        $sort: { label: 1 },
-      },
-    ]);
-
-    monthlyIncome.forEach((entry) => {
-      entry.label = getMonthName(parseInt(entry.label));
-    });
-
-    console.log(monthlyIncome);
-    res.status(200).json({ monthlyIncome });
-  } catch (error) {
-    console.error("Error aggregating monthly income:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};

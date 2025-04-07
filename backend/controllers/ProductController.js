@@ -54,15 +54,65 @@ exports.reviewsOfProduct = async (req, res, next) => {
   }
 };
 
+// In ProductController.js
 exports.createProduct = async (req, res, next) => {
-  console.log(req.body);
+  console.log("Form data received:", req.body);
+  console.log("Files received:", req.files);
+  
   try {
-    req.body.images = await ImageFile.uploadMultiple({
-      imageFiles: req.files,
-      request: req,
-    });
-
-    const product = await Product.create(req.body);
+    // Parse the _parts string if it exists
+    let productData = {};
+    
+    if (req.body._parts) {
+      // The _parts is a string containing key-value pairs separated by commas
+      const partsArray = req.body._parts.split(',');
+      
+      // Process in pairs (key, value)
+      for (let i = 0; i < partsArray.length; i += 2) {
+        if (i + 1 < partsArray.length) {
+          const key = partsArray[i];
+          const value = partsArray[i + 1];
+          
+          // Skip images field as it will be handled separately
+          if (key !== 'images') {
+            productData[key] = value;
+          }
+        }
+      }
+    } else {
+      // If _parts doesn't exist, use the regular req.body
+      productData = {
+        name: req.body.name,
+        price: req.body.price,
+        description: req.body.description,
+        color: req.body.color,
+        brand: req.body.brand,
+        type: req.body.type,
+        stock: req.body.stock
+      };
+    }
+    
+    // Handle image upload
+    if (req.files && req.files.length > 0) {
+      productData.images = await ImageFile.uploadMultiple({
+        imageFiles: req.files,
+        request: req,
+      });
+    }
+    
+    console.log("Processed product data:", productData);
+    
+    // Additional validation before creating
+    if (!productData.name || !productData.brand || !productData.type || 
+        !productData.color || !productData.description) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+        data: productData
+      });
+    }
+    
+    const product = await Product.create(productData);
 
     return res.status(201).json({
       success: true,
@@ -71,10 +121,10 @@ exports.createProduct = async (req, res, next) => {
     });
   } catch (error) {
     console.log("error creating a product", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: "Product Creation Failed",
-      error: error.message 
+      error: error.message
     });
   }
 };
@@ -190,7 +240,7 @@ exports.deleteProduct = async (req, res) => {
   }
 };
 
-exports.AddReview = async (req, res) => {
+exports.getMyReviewsForProduct = async (req, res) => {
   try {
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -200,21 +250,87 @@ exports.AddReview = async (req, res) => {
       });
     }
     
-    req.body.user = req.user._id;
-    req.body.product = req.params.id;
-    const review = await Review.create(req.body);
+    // Get the authenticated user's ID
+    const userId = req.user._id;
     
-    const product = await Product.findById(req.params.id);
+    // Find the user's reviews for this product
+    const reviews = await Review.find({
+      product: req.params.id,
+      user: userId
+    });
     
+    res.status(200).json({
+      success: true,
+      reviews
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error fetching user's reviews",
+      error: err.message 
+    });
+  }
+};
+
+// Modify the AddReview function to verify purchase before allowing review
+exports.AddReview = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const userId = req.user._id;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid product ID format" 
+      });
+    }
+    
+    // Check if the product exists
+    const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ 
         success: false, 
         message: "Product not found" 
       });
     }
-
+    
+    // Verify that the user has purchased this product
+    const purchaseVerified = await Order.findOne({
+      user: userId,
+      'orderItems.product': productId,
+      status: "1" // Delivered status
+    });
+    
+    if (!purchaseVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only review products you have purchased and received"
+      });
+    }
+    
+    // Check if user has already reviewed this product
+    const existingReview = await Review.findOne({
+      user: userId,
+      product: productId
+    });
+    
+    if (existingReview) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reviewed this product. Please edit your existing review."
+      });
+    }
+    
+    // Create the review
+    req.body.user = userId;
+    req.body.product = productId;
+    const review = await Review.create(req.body);
+    
+    // Add review to product
     await Product.findByIdAndUpdate(
-      req.params.id,
+      productId,
       {
         $push: { reviews: review._id },
       },
@@ -232,17 +348,30 @@ exports.AddReview = async (req, res) => {
   }
 };
 
+// Modify EditReview to verify ownership
 exports.EditReview = async (req, res) => {
   try {
+    const reviewId = req.params.id;
+    const userId = req.user._id;
+    
+    // Validate input parameters
+    if (!reviewId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Review ID is required" 
+      });
+    }
+    
     // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    if (!mongoose.Types.ObjectId.isValid(reviewId)) {
       return res.status(400).json({ 
         success: false, 
         message: "Invalid review ID format" 
       });
     }
     
-    const review = await Review.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    // Find the review and populate user information for more detailed logging
+    const review = await Review.findById(reviewId).populate('user');
     
     if (!review) {
       return res.status(404).json({ 
@@ -251,9 +380,80 @@ exports.EditReview = async (req, res) => {
       });
     }
     
-    res.status(200).json({ success: true, message: "Review Updated", review });
+    // Detailed logging for debugging
+    console.log("Edit Review Request Details:", {
+      reviewId,
+      requestUserId: userId.toString(),
+      reviewUserId: review.user._id.toString(),
+      requestBody: req.body
+    });
+    
+    // Verify ownership (users can only edit their own reviews)
+    if (review.user._id.toString() !== userId.toString()) {
+      console.warn("Unauthorized review edit attempt:", {
+        requestUserId: userId.toString(),
+        reviewUserId: review.user._id.toString(),
+        reviewId
+      });
+      
+      return res.status(403).json({
+        success: false,
+        message: "You can only edit your own reviews"
+      });
+    }
+    
+    // Validate input for update
+    const { ratings, comment } = req.body;
+    
+    if (!ratings || ratings < 1 || ratings > 5) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid rating. Must be between 1 and 5" 
+      });
+    }
+    
+    if (!comment || comment.trim().length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Comment cannot be empty" 
+      });
+    }
+    
+    // Update the review
+    const updatedReview = await Review.findByIdAndUpdate(
+      reviewId, 
+      {
+        ratings: ratings,
+        comment: comment.trim()
+      }, 
+      { 
+        new: true,
+        runValidators: true 
+      }
+    );
+    
+    // Additional logging for successful update
+    console.log("Review Updated Successfully:", {
+      reviewId,
+      userId: userId.toString(),
+      newRating: ratings,
+      commentLength: comment.length
+    });
+    
+    res.status(200).json({ 
+      success: true, 
+      message: "Review Updated", 
+      review: updatedReview 
+    });
   } catch (err) {
-    console.log(err);
+    // Comprehensive error logging
+    console.error("Error updating review:", {
+      error: err.message,
+      stack: err.stack,
+      reviewId: req.params.id,
+      userId: req.user?._id
+    });
+    
     res.status(500).json({ 
       success: false, 
       message: "Error updating review",
@@ -262,17 +462,22 @@ exports.EditReview = async (req, res) => {
   }
 };
 
+// Modify deleteReview to verify ownership
 exports.deleteReview = async (req, res) => {
   try {
+    const reviewId = req.params.id;
+    const userId = req.user._id;
+    
     // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    if (!mongoose.Types.ObjectId.isValid(reviewId)) {
       return res.status(400).json({ 
         success: false, 
         message: "Invalid review ID format" 
       });
     }
     
-    const review = await Review.findByIdAndDelete(req.params.id);
+    // Find the review
+    const review = await Review.findById(reviewId);
     
     if (!review) {
       return res.status(404).json({ 
@@ -281,12 +486,94 @@ exports.deleteReview = async (req, res) => {
       });
     }
     
-    res.status(200).json({ success: true, message: "Review Deleted" });
+    // Verify ownership (users can only delete their own reviews)
+    // Allow admins to delete any review
+    const isAdmin = req.user.isAdmin === true;
+    
+    if (!isAdmin && review.user.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own reviews"
+      });
+    }
+    
+    // Remove the review from the product
+    await Product.findByIdAndUpdate(
+      review.product,
+      {
+        $pull: { reviews: reviewId },
+      }
+    );
+    
+    // Delete the review
+    await Review.findByIdAndDelete(reviewId);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: "Review Deleted" 
+    });
   } catch (err) {
     console.log(err);
     res.status(500).json({ 
       success: false, 
       message: "Error deleting review",
+      error: err.message 
+    });
+  }
+};
+
+exports.getMyReviews = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find all reviews by this user and populate product information
+    const reviews = await Review.find({ user: userId })
+      .populate({
+        path: 'product',
+        select: 'name images price'
+      })
+      .sort({ createdAt: -1 }); // Most recent reviews first
+    
+    res.status(200).json({
+      success: true,
+      reviews
+    });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error fetching user's reviews",
+      error: err.message 
+    });
+  }
+};
+
+exports.verifyPurchase = async (req, res, next) => {
+  try {
+    const productId = req.params.id;
+    const userId = req.user._id;
+    
+    // Check if the user has purchased this product
+    const purchaseVerified = await Order.findOne({
+      user: userId,
+      'orderItems.product': productId,
+      status: "1" // Delivered status
+    });
+    
+    if (!purchaseVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only review products you have purchased and received"
+      });
+    }
+    
+    // If purchase is verified, proceed to the next middleware
+    next();
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error verifying purchase",
       error: err.message 
     });
   }

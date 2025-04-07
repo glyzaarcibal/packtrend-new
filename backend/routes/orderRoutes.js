@@ -21,7 +21,6 @@ router.put("/update/status", UpdateStatus);
 router.get("/get/single/order", isAuthenticated, getSingleOrderUser);
 router.get("/average/sales", calculateAverageSalesPerProduct);
 router.get("/total/sales", calculateTotalSalesPerProduct);
-router.get("/monthly/income", MonthlyIncome);
 router.put("/orders/:id", isAuthenticated, updateOrder);
 
 // Add the missing GET route for a single order by ID
