@@ -13,7 +13,7 @@ import ProductReviewsScreen from "../Screens/Review/ProductReviewsScreen";
 import EditUserProfile from "../Screens/User/EditUserProfile";
 import MyReviewsScreen from "../Screens/Review/MyReviewsScreen";
 import EditReviewScreen from "../Screens/Review/EditReviewScreen";
-import AdminDashboard from "../Screens/Admin/AdminDashboard";
+import AdminNavigator from "../Navigators/AdminNavigator";
 
 
 
@@ -119,9 +119,9 @@ const UserNavigator = () => {
                     />
                     <Stack.Screen
                         name="AdminDashboard"
-                        component={AdminDashboard}
+                        component={AdminNavigator}
                         options={{
-                            title: "AdminDashboard"
+                            headerShown: false
                         }}
                     />
                 </>
