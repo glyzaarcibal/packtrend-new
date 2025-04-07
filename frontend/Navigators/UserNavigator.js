@@ -10,8 +10,9 @@ import UserProfile from "../Screens/User/UserProfile";
 import OrderDetail from "../Screens/User/OrderDetail";
 import MyOrders from "../Screens/User/MyOrders";
 import ProductReviewsScreen from "../Screens/Review/ProductReviewsScreen";
-import EditReviewScreen from "../Screens/Review/EditReviewScreen";
+import EditUserProfile from "../Screens/User/EditUserProfile";
 import MyReviewsScreen from "../Screens/Review/MyReviewsScreen";
+
 
 
 const Stack = createStackNavigator();
@@ -91,12 +92,14 @@ const UserNavigator = () => {
                             title: "Review Products"
                         }}
                     />
-                    <Stack.Screen
-                        name="EditReview"
-                        component={EditReviewScreen}
-                        options={{
-                            title: "Edit Review"
-                        }}
+                    
+                    <Stack.Screen 
+                        name="EditReview" 
+                        component={EditUserProfile} 
+                        options={{ 
+                            headerTitle: 'Edit Review',
+                            headerShown: true,
+                        }} 
                     />
                     <Stack.Screen
                         name="MyReview"

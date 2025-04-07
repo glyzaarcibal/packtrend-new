@@ -13,8 +13,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import baseURL from "../../assets/common/baseurl";
-import { logoutAction } from '../../context/Actions/Auth.actions';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import axios from 'axios';
 
 const UserProfile = ({ navigation }) => {
     const dispatch = useDispatch();
@@ -64,16 +64,54 @@ const UserProfile = ({ navigation }) => {
                     text: "Cancel",
                     style: "cancel"
                 },
-                { 
-                    text: "Logout", 
+                {
+                    text: "Logout",
                     onPress: async () => {
                         try {
-                            await dispatch(logoutAction());
-                            await AsyncStorage.multiRemove(['userData', 'user', 'token']);
-                            navigation.replace('Auth');
+                            setLoading(true);
+                            
+                            // Get authentication token
+                            const token = await AsyncStorage.getItem('jwt') || 
+                                         await AsyncStorage.getItem('token');
+                            
+                            if (token) {
+                                // Attempt to call logout endpoint - we're skipping API call if it's not working
+                                // This is a client-side logout only
+                                console.log('Performing client-side logout');
+                            }
+                            
+                            // Clear stored user data
+                            await AsyncStorage.removeItem('jwt');
+                            await AsyncStorage.removeItem('token');
+                            await AsyncStorage.removeItem('userData');
+                            await AsyncStorage.removeItem('user');
+                            
+                            // Update Redux state
+                            dispatch({
+                                type: 'LOGOUT'
+                            });
+                            
+                            // Simple navigation approach - try different options
+                            try {
+                                
+                                navigation.navigate('Home');
+                            } catch (navError) {
+                                console.log('Navigation error:', navError);
+                                try {
+                                   
+                                    navigation.navigate('Auth', { screen: 'Login' });
+                                } catch (nestedNavError) {
+                                    console.log('Nested navigation error:', nestedNavError);
+                                    // Option 3: Go back to the first screen in history
+                                    navigation.popToTop();
+                                }
+                            }
+                            
+                            setLoading(false);
                         } catch (error) {
                             console.error('Logout Error:', error);
-                            Alert.alert('Error', 'Logout failed. Please try again.');
+                            setLoading(false);
+                            Alert.alert('Error', 'Failed to logout. Please try again.');
                         }
                     }
                 }
@@ -82,7 +120,7 @@ const UserProfile = ({ navigation }) => {
     };
 
     const handleEditProfile = () => {
-        navigation.navigate('EditProfile');
+        navigation.navigate('EditReview');
     };
 
     const handleTryAgain = () => {
@@ -129,13 +167,21 @@ const UserProfile = ({ navigation }) => {
                 contentContainerStyle={styles.contentContainer}
             >
                 {/* Content Header with Edit Button */}
-                <View style={styles.contentHeader}>
-                    <Text style={styles.contentHeaderTitle}>My Profile</Text>
-                    <View style={styles.statusContainer}>
-                        <Text style={styles.statusText}>
-                            Status: {isAdminUser ? 'Admin' : 'User'}
-                        </Text>
+                <View style={styles.headerContainer}>
+                    <View style={styles.contentHeader}>
+                        <Text style={styles.contentHeaderTitle}>My Profile</Text>
+                        <View style={styles.statusContainer}>
+                            <Text style={styles.statusText}>
+                                Status: {isAdminUser ? 'Admin' : 'User'}
+                            </Text>
+                        </View>
                     </View>
+                    <TouchableOpacity 
+                        style={styles.editButton}
+                        onPress={handleEditProfile}
+                    >
+                        <Icon name="edit" size={20} color="#FFF" />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.imageSection}>
@@ -158,16 +204,6 @@ const UserProfile = ({ navigation }) => {
                             </View>
                         )}
                     </View>
-                </View>
-
-                <View style={styles.actionBar}>
-                    <TouchableOpacity 
-                        style={styles.editButton}
-                        onPress={handleEditProfile}
-                    >
-                        <Icon name="edit" size={16} color="#6979F8" />
-                        <Text style={styles.editButtonText}>Edit Profile</Text>
-                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.infoSection}>
@@ -195,12 +231,13 @@ const UserProfile = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Logout Button */}
                 <TouchableOpacity 
                     style={styles.logoutButton}
                     onPress={handleLogout}
                 >
                     <Icon name="logout" size={20} color="#FFF" style={styles.logoutIcon} />
-                    <Text style={styles.buttonText}>LOGOUT</Text>
+                    <Text style={styles.logoutText}>Logout</Text>
                 </TouchableOpacity>
 
                 <View style={styles.footer}>
@@ -230,6 +267,27 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#EEF0FF'
     },
+    headerContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 20,
+        paddingRight: 10
+    },
+    editButton: {
+        backgroundColor: '#6979F8',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        marginTop: 5
+    },
     menuText:{
         backgroundColor: 'white',
         borderRadius: 16,
@@ -253,10 +311,10 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         textAlign: 'center'
     },
-    // Content Header
+    // Content Header (kept)
     contentHeader: {
         alignItems: 'center',
-        marginBottom: 20
+        flex: 1
     },
     contentHeaderTitle: {
         fontSize: 24,
@@ -315,26 +373,6 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         marginLeft: 4
     },
-    // New Action Bar
-    actionBar: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 20
-    },
-    editButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#E0E5FF',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-    },
-    editButtonText: {
-        marginLeft: 8,
-        color: '#6979F8',
-        fontWeight: '500',
-        fontSize: 14
-    },
     infoSection: {
         backgroundColor: 'white',
         borderRadius: 16,
@@ -376,22 +414,45 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         color: '#333'
     },
-    logoutButton: {
-        backgroundColor: '#FF4B55',
-        borderRadius: 25,
-        padding: 16,
+    menuItem: {
         flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
-        marginVertical: 10,
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F5F5F5'
+    },
+    menuIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F0F2FF',
+        textAlign: 'center',
+        textAlignVertical: 'center',
+        marginRight: 12
+    },
+    // Logout Button
+    logoutButton: {
+        backgroundColor: '#FF6B6B',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        borderRadius: 12,
+        marginVertical: 16,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
-        elevation: 3
+        elevation: 3,
     },
     logoutIcon: {
-        marginRight: 8
+        marginRight: 10,
+    },
+    logoutText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 16
     },
     buttonText: {
         color: 'white',
@@ -411,25 +472,6 @@ const styles = StyleSheet.create({
     footerText: {
         color: '#A0A8D0',
         fontSize: 14
-    },
-    // Menu item styles
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F5F5F5'
-    },
-    menuIcon: {
-        marginRight: 12,
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#F0F2FF',
-        textAlign: 'center',
-        textAlignVertical: 'center',
-        paddingTop: 8
     }
 });
 

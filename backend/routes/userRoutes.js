@@ -29,7 +29,7 @@ router.post("/logout-all", isAuthenticated, logoutAll);
 
 // User profile routes
 router.get('/profile', isAuthenticated, userProfile);
-router.put("/update/user/profile", isAuthenticated, upload.array('image'), userProfileUpdate);
+router.put('/profile/update', isAuthenticated, upload.array('image'), userProfileUpdate);
 router.put('/change-password', isAuthenticated, changePassword);
 
 // Address management
